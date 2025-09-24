@@ -1,0 +1,45 @@
+# 前端 Dockerfile - React 应用 + Nginx
+FROM node:18-alpine AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制 package.json 和 package-lock.json
+COPY package*.json ./
+
+# 安装依赖
+RUN npm ci && npm cache clean --force
+
+# 复制源代码
+COPY . .
+
+# 构建应用
+RUN npm run build
+
+# 生产阶段 - Nginx
+FROM nginx:alpine AS production
+
+# 安装 curl 用于健康检查
+RUN apk add --no-cache curl
+
+# 删除默认的 nginx 配置
+RUN rm /etc/nginx/conf.d/default.conf
+
+# 复制自定义 nginx 配置
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# 从构建阶段复制构建产物
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# 创建 SSL 证书目录
+RUN mkdir -p /etc/nginx/ssl
+
+# 暴露端口
+EXPOSE 80 443
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# 启动 Nginx
+CMD ["nginx", "-g", "daemon off;"]
