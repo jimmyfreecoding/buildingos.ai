@@ -1,0 +1,305 @@
+# BuildingOS AI Count - 完整部署 Docker Compose 配置
+# 7个独立容器：前端、后端、PostgreSQL、Redis、TDengine、EMQX、Grafana
+
+services:
+  # 1. 前端服务 (React + Nginx)
+  web:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: buildingos-web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../docker/ssl-certs:/etc/nginx/ssl:ro
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - emqx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 2. 后端服务 (NestJS)
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: buildingos-backend
+    environment:
+      # 数据库配置
+      - DATABASE_HOST=buildingos-postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=buildingos
+      - DATABASE_USER=buildingos
+      - DATABASE_PASSWORD=buildingos
+      
+      # Redis配置
+      - REDIS_HOST=buildingos-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=redis123
+      
+      # JWT配置
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_EXPIRES_IN=3600s
+      
+      # OpenAI Configuration (请在生产环境中设置实际的API密钥)
+      # - OPENAI_API_KEY=your-openai-api-key-here
+      
+      # MQTT Configuration
+      - MQTT_BROKER_URL=ws://buildingos-emqx:8083/mqtt
+      
+      # TDengine配置
+      - TDENGINE_HOST=buildingos-tdengine
+      - TDENGINE_PORT=6041
+      - TDENGINE_USER=root
+      - TDENGINE_PASSWORD=taosdata
+      - TDENGINE_DATABASE=buildingos
+      
+      # 应用配置
+      - NODE_ENV=production
+      - PORT=3000
+      - API_PREFIX=api/v1
+      
+      # 文件上传配置
+      - UPLOAD_DEST=./uploads
+      - MAX_FILE_SIZE=10485760
+      
+      # 日志配置
+      - LOG_LEVEL=info
+      - LOG_FILE=./logs/app.log
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_backups:/app/backups
+    ports:
+      - "3000:3000"
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      tdengine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # 3. PostgreSQL 数据库服务
+  postgres:
+    image: postgres:15
+    container_name: buildingos-postgres
+    environment:
+      - POSTGRES_DB=buildingos
+      - POSTGRES_USER=buildingos
+      - POSTGRES_PASSWORD=buildingos
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buildingos -d buildingos"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # 4. Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: buildingos-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass redis123
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+
+  # 5. TDengine 时序数据库
+  tdengine:
+    image: tdengine/tdengine:3.3.2.0
+    container_name: buildingos-tdengine
+    environment:
+      - TAOS_FQDN=buildingos-tdengine
+      - TAOS_FIRST_EP=buildingos-tdengine:6030
+      - TAOS_SERVER_PORT=6030
+      - TAOS_HTTP_PORT=6041
+    volumes:
+      - tdengine_data:/var/lib/taos
+      - tdengine_log:/var/log/taos
+    ports:
+      - "6030:6030"
+      - "6041:6041"
+      - "6043:6043"
+      - "6044:6044"
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "taos -s 'show databases;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # 6. EMQX MQTT Broker
+  emqx:
+    image: emqx/emqx:5.8.0
+    container_name: buildingos-emqx
+    environment:
+      - EMQX_NAME=buildingos-emqx
+      - EMQX_HOST=buildingos-emqx
+      - EMQX_NODE__COOKIE=emqxsecretcookie
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8084:8084"
+      - "8883:8883"
+      - "18083:18083"
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # 7. Grafana 监控面板
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: buildingos-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=tdengine-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - grafana_logs:/var/log/grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - buildingos-network
+    restart: unless-stopped
+    depends_on:
+      - tdengine
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+
+# 数据卷定义
+volumes:
+  backend_uploads:
+    driver: local
+  backend_backups:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  tdengine_data:
+    driver: local
+  tdengine_log:
+    driver: local
+  emqx_data:
+    driver: local
+  emqx_log:
+    driver: local
+  grafana_data:
+    driver: local
+  grafana_logs:
+    driver: local
+
+# 网络定义
+networks:
+  buildingos-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
