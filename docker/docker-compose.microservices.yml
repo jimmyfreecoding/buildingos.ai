@@ -175,8 +175,48 @@ services:
         reservations:
           memory: 256M
           cpus: '0.25'
-
-
+  # 6. zlmediakit
+  zlmediakit:
+      image: zlmediakit/zlmediakit:master
+      container_name: buildingos-zlmediakit
+      environment:
+        - ZLM_GENERAL_enableVhost=1
+        - ZLM_GENERAL_flowThreshold=1024
+        - ZLM_HTTP_port=80
+        - ZLM_HTTP_sslport=443
+        - ZLM_RTSP_port=554
+        - ZLM_RTMP_port=1935
+        - ZLM_RTP_port=10000
+        - ZLM_API_secret=buildingos
+      volumes:
+        - zlmediakit_data:/opt/media
+        - zlmediakit_logs:/opt/media/log
+      ports:
+        - "1935:1935"      # RTMP
+        - "8080:80"        # HTTP
+        - "8443:443"       # HTTPS
+        - "8554:554"       # RTSP
+        - "10000:10000"    # RTP
+        - "10000:10000/udp" # RTP UDP
+        - "8000:8000/udp"  # WebRTC
+        - "9000:9000/udp"  # WebRTC
+      networks:
+        - buildingos-network
+      restart: unless-stopped
+      healthcheck:
+        test: ["CMD-SHELL", "curl -f http://localhost/index/api/getServerConfig || exit 1"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+        start_period: 60s
+      deploy:
+        resources:
+          limits:
+            memory: 1G
+            cpus: '0.5'
+          reservations:
+            memory: 512M
+            cpus: '0.25'
 # 卷定义
 volumes:
   postgres_data:
@@ -220,6 +260,10 @@ volumes:
   grafana_data:
     driver: local
   grafana_logs:
+    driver: local
+  zlmediakit_data:
+    driver: local
+  zlmediakit_logs:
     driver: local
 
 
