@@ -34,7 +34,7 @@ services:
       # 数据库配置
 
       - DB_TYPE=postgres
-      - DB_HOST=localhost
+      - DB_HOST=buildingos-postgres
       - DB_PORT=5432
       - DB_USER=buildingos
       - DB_PASSWORD=buildingos

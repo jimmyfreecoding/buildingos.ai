@@ -35,8 +35,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
 
 # 创建必要的目录
-RUN mkdir -p /app/uploads /app/backups /app/logs && \
-    chown -R nestjs:nodejs /app
+RUN mkdir -p /app/uploads /app/backups /app/logs /home/buildingos/uploadData && \
+    chown -R nestjs:nodejs /app /home/buildingos
 
 # 切换到非 root 用户
 USER nestjs
