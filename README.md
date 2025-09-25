@@ -19,6 +19,13 @@ BuildingOS AI 是一个基于微服务架构的智能建筑管理系统，包含
 - 可用内存: 至少 4GB
 - 可用磁盘空间: 至少 10GB
 
+### 编译前后端
+
+docker-compose -f docker-compose.full.yml build web 
+docker-compose -f docker-compose.full.yml up web 
+docker-compose -f docker-compose.full.yml build backend 
+docker-compose -f docker-compose.full.yml up backend 
+
 ### 启动所有服务
 
 ```bash

@@ -5,8 +5,8 @@ services:
   # 1. 前端服务 (React + Nginx)
   web:
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ../../buildingos_web
+      dockerfile: ../buildingos.ai/docker/Dockerfile.web
     container_name: buildingos-web
     ports:
       - "80:80"
@@ -16,9 +16,7 @@ services:
     networks:
       - buildingos-network
     restart: unless-stopped
-    depends_on:
-      - backend
-      - emqx
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
@@ -29,24 +27,35 @@ services:
   # 2. 后端服务 (NestJS)
   backend:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ../../bulidingos
+      dockerfile: ../buildingos.ai/docker/Dockerfile.backend
     container_name: buildingos-backend
     environment:
       # 数据库配置
-      - DATABASE_HOST=buildingos-postgres
-      - DATABASE_PORT=5432
-      - DATABASE_NAME=buildingos
-      - DATABASE_USER=buildingos
-      - DATABASE_PASSWORD=buildingos
-      
+
+      - DB_TYPE=postgres
+      - DB_HOST=localhost
+      - DB_PORT=5432
+      - DB_USER=buildingos
+      - DB_PASSWORD=buildingos
+      - DB_NAME=buildingos
+
+
+      # - DATABASE_HOST=buildingos-postgres
+      # - DATABASE_PORT=5432
+      # - DATABASE_NAME=buildingos
+      # - DATABASE_USER=buildingos
+      # - DATABASE_PASSWORD=buildingos
+   
+
+
       # Redis配置
       - REDIS_HOST=buildingos-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=redis123
       
       # JWT配置
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_SECRET=BuildingOS
       - JWT_EXPIRES_IN=3600s
       
       # OpenAI Configuration (请在生产环境中设置实际的API密钥)
@@ -54,7 +63,9 @@ services:
       
       # MQTT Configuration
       - MQTT_BROKER_URL=ws://buildingos-emqx:8083/mqtt
-      
+      - MQTT_USERNAME=buildingos
+      - MQTT_PASSWORD=Dvdv1205
+      - API_BASE_URL=http://localhost:3001
       # TDengine配置
       - TDENGINE_HOST=buildingos-tdengine
       - TDENGINE_PORT=6041
@@ -64,7 +75,7 @@ services:
       
       # 应用配置
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3001
       - API_PREFIX=api/v1
       
       # 文件上传配置
@@ -78,7 +89,7 @@ services:
       - backend_uploads:/app/uploads
       - backend_backups:/app/backups
     ports:
-      - "3000:3000"
+      - "3001:3001"
     networks:
       - buildingos-network
     restart: unless-stopped
@@ -90,7 +101,7 @@ services:
       tdengine:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 5
