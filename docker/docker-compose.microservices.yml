@@ -19,6 +19,7 @@ services:
       - buildingos-network
     restart: unless-stopped
     healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buildingos -d buildingos"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -50,10 +51,11 @@ services:
       - buildingos-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "redis123", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -63,33 +65,30 @@ services:
           memory: 256M
           cpus: '0.1'
 
-  # 3. EMQX 5.8 MQTT消息队列服务
+  # 3. EMQX MQTT Broker
   emqx:
     image: emqx/emqx:5.8.0
     container_name: buildingos-emqx
     environment:
       - EMQX_NAME=buildingos-emqx
-      - EMQX_HOST=0.0.0.0
-      - EMQX_NODE__COOKIE=buildingos_emqx_cookie
+      - EMQX_HOST=buildingos-emqx
+      - EMQX_NODE__COOKIE=emqxsecretcookie
       - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
-      - EMQX_DASHBOARD__DEFAULT_PASSWORD=emqx123
-      - EMQX_AUTH__USER__1__USERNAME=buildingos
-      - EMQX_AUTH__USER__1__PASSWORD=mqtt123
-      - EMQX_LOADED_PLUGINS="emqx_recon,emqx_retainer,emqx_management,emqx_dashboard"
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
     volumes:
       - emqx_data:/opt/emqx/data
       - emqx_log:/opt/emqx/log
     ports:
-      - "1883:1883"      # MQTT
-      - "8083:8083"      # MQTT over WebSocket
-      - "8084:8084"      # MQTT over SSL
-      - "8883:8883"      # MQTT over SSL
-      - "18083:18083"    # Dashboard
+      - "1883:1883"
+      - "8083:8083"
+      - "8084:8084"
+      - "8883:8883"
+      - "18083:18083"
     networks:
       - buildingos-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "emqx ctl status"]
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -142,16 +141,14 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # 5. Grafana 数据可视化服务
+  # 5. Grafana 数据可视化
   grafana:
-    image: grafana/grafana:10.2.0
+    image: grafana/grafana:11.3.0
     container_name: buildingos-grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=grafana123
-      - GF_INSTALL_PLUGINS=tdengine-datasource
-      - GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
-      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_USERS_ALLOW_ORG_CREATE=false
       - GF_USERS_AUTO_ASSIGN_ORG=true
@@ -160,7 +157,7 @@ services:
       - grafana_data:/var/lib/grafana
       - grafana_logs:/var/log/grafana
     ports:
-      - "3000:3000"      # Grafana Web界面端口
+      - "3000:3000"
     networks:
       - buildingos-network
     restart: unless-stopped
@@ -173,14 +170,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 512M
           cpus: '0.5'
         reservations:
-          memory: 512M
+          memory: 256M
           cpus: '0.25'
-    depends_on:
-      - tdengine
-      - postgres
 
 
 # 卷定义

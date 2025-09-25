@@ -185,18 +185,22 @@ services:
     image: tdengine/tdengine:3.3.2.0
     container_name: buildingos-tdengine
     environment:
-      - TAOS_FQDN=buildingos-tdengine
-      - TAOS_FIRST_EP=buildingos-tdengine:6030
+      - TAOS_FQDN=tdengine
+      - TAOS_FIRST_EP=tdengine:6030
       - TAOS_SERVER_PORT=6030
-      - TAOS_HTTP_PORT=6041
+      - TAOS_LOG_DIR=/var/log/taos
+      - TAOS_DATA_DIR=/var/lib/taos
+      - TAOS_ARBITRATOR=tdengine:6042
     volumes:
       - tdengine_data:/var/lib/taos
       - tdengine_log:/var/log/taos
+      - ./explorer.toml:/etc/taos/explorer.toml:ro  # 自定义taosExplorer配置文件
     ports:
-      - "6030:6030"
-      - "6041:6041"
-      - "6043:6043"
-      - "6044:6044"
+      - "6030:6030"      # TDengine 客户端连接端口
+      - "6041:6041"      # RESTful 接口端口
+      - "6043:6043"      # TDengine 集群通信端口
+      - "6044:6044"      # TDengine 数据同步端口
+      - "6060:6060"      # taosExplorer Web管理界面端口
     networks:
       - buildingos-network
     restart: unless-stopped
