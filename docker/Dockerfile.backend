@@ -34,6 +34,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
 
+# 复制 area-list.json 数据文件
+COPY --from=builder --chown=nestjs:nodejs /app/src/server/area/data/area-list.json ./dist/area/data/area-list.json
+
 # 创建必要的目录
 RUN mkdir -p /app/uploads /app/backups /app/logs /home/buildingos/uploadData && \
     chown -R nestjs:nodejs /app /home/buildingos
