@@ -1,41 +1,67 @@
-# BuildingOS 部署方案
+# BuildingOS 分离式部署方案
 
-## 📋 快速开始
+## 🚀 快速开始
 
 ### 环境要求
 - Docker 20.10+
 - Docker Compose 2.0+
-- 最小配置：4核CPU，8GB内存，100GB存储
+- 2GB+ 可用内存
+- 10GB+ 可用磁盘空间
 
 ### 一键部署
 ```bash
-# 1. 配置环境变量
-cp .env.prod.example .env.prod
-vim .env.prod
+# 克隆项目
+git clone <repository-url>
+cd buildingos.ai/docker/deploy
 
-# 2. 执行部署
-chmod +x ../../scripts/deploy.sh
-../../scripts/deploy.sh production v1.0.0
+# 配置环境变量
+cp .env.prod.example .env.prod
+# 编辑 .env.prod 文件，修改密码和配置
+
+# 完整部署（首次部署）
+chmod +x deploy.sh
+./deploy.sh
+
+# 仅更新应用（日常更新）
+./deploy.sh --app-only
 ```
 
-## 🐳 镜像管理策略
+## 📋 分离式部署架构
+
+### 核心理念
+BuildingOS 采用**分离式容器部署**架构，将系统分为两个独立的部分：
+
+1. **基础设施容器** - 数据库、缓存、消息队列等，更新频率低
+2. **应用容器** - 前后端业务代码，更新频率高
+
+### 架构优势
+- ✅ **快速更新**：代码更新时仅需重新部署应用容器
+- ✅ **稳定可靠**：基础设施容器独立运行，不受代码更新影响
+- ✅ **资源优化**：避免不必要的基础设施重启
+- ✅ **版本控制**：前后端可独立版本管理
+
+## 🏗️ 镜像管理策略
 
 ### 推荐方案：阿里云容器镜像服务
 ```bash
 # 镜像命名规范
-registry.cn-hangzhou.aliyuncs.com/buildingos/buildingos-backend:v1.0.0
-registry.cn-hangzhou.aliyuncs.com/buildingos/buildingos-web:v1.0.0
+registry.cn-hangzhou.aliyuncs.com/buildingos/buildingos-backend:v1.2.3
+registry.cn-hangzhou.aliyuncs.com/buildingos/buildingos-web:v1.2.3
+registry.cn-hangzhou.aliyuncs.com/buildingos/postgres:15-alpine
 ```
 
-### 为什么使用镜像仓库而不是直接拷贝？
+### 镜像仓库 vs 文件拷贝对比
 
-| 对比项 | 镜像仓库 | 文件拷贝 |
-|--------|----------|----------|
-| **版本管理** | ✅ 自动标签管理 | ❌ 手动管理，易混乱 |
-| **传输效率** | ✅ 增量传输，层缓存 | ❌ 完整文件，传输慢 |
-| **安全性** | ✅ 认证授权，漏洞扫描 | ❌ 文件传输，安全风险 |
-| **自动化** | ✅ CI/CD 集成 | ❌ 手动操作，容易出错 |
-| **回滚能力** | ✅ 一键回滚到任意版本 | ❌ 手动恢复，复杂 |
+| 特性 | 镜像仓库 | 文件拷贝 |
+|------|----------|----------|
+| **版本管理** | ✅ 完善的标签系统 | ❌ 手动管理困难 |
+| **传输效率** | ✅ 增量传输，断点续传 | ❌ 完整文件传输 |
+| **安全性** | ✅ 私有仓库，权限控制 | ❌ 文件传输风险 |
+| **自动化** | ✅ CI/CD 集成 | ❌ 需要手动操作 |
+| **回滚能力** | ✅ 一键回滚到任意版本 | ❌ 需要备份管理 |
+| **多环境** | ✅ 统一镜像，多环境部署 | ❌ 环境间同步复杂 |
+
+**结论**：生产环境强烈推荐使用镜像仓库方案。
 
 ## 🚀 部署流程
 

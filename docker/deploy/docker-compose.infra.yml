@@ -1,71 +1,7 @@
 version: '3.8'
 
+# 仅包含基础设施容器的配置文件
 services:
-  # 应用服务 - 后端
-  buildingos-backend:
-    image: ${DOCKER_REGISTRY}/buildingos-backend:${BACKEND_VERSION:-latest}
-    container_name: buildingos-backend
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://redis:6379
-      - TDENGINE_HOST=tdengine
-      - TDENGINE_PORT=6030
-      - EMQX_HOST=emqx
-      - EMQX_PORT=1883
-      - JWT_SECRET=${JWT_SECRET}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      tdengine:
-        condition: service_started
-      emqx:
-        condition: service_started
-    networks:
-      - buildingos-network
-    ports:
-      - "3000:3000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    labels:
-      - "app.type=application"
-      - "app.service=backend"
-
-  # 应用服务 - 前端
-  buildingos-web:
-    image: ${DOCKER_REGISTRY}/buildingos-web:${WEB_VERSION:-latest}
-    container_name: buildingos-web
-    restart: unless-stopped
-    environment:
-      - REACT_APP_API_URL=http://localhost:3000
-      - REACT_APP_ENV=production
-    depends_on:
-      - buildingos-backend
-    networks:
-      - buildingos-network
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./ssl:/etc/nginx/ssl:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    labels:
-      - "app.type=application"
-      - "app.service=web"
-
   # 基础设施服务 - PostgreSQL
   postgres:
     image: ${DOCKER_REGISTRY}/postgres:15-alpine

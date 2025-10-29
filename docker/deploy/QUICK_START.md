@@ -1,73 +1,87 @@
-# 🚀 BuildingOS 快速部署指南
+# BuildingOS 分离式部署 - 5分钟快速指南
 
-## 📋 部署前准备
+## 🎯 核心概念
 
-### 1. 服务器要求
+BuildingOS 采用**分离式容器部署**架构：
+- **基础设施容器**：数据库、缓存等，更新频率低
+- **应用容器**：前后端代码，更新频率高
+
+这样设计的好处：代码更新时只需重新部署应用容器，基础设施保持稳定运行。
+
+## 📋 服务器要求
+
+- **操作系统**：Ubuntu 20.04+ / CentOS 8+ / Debian 11+
+- **硬件配置**：2核CPU，4GB内存，20GB存储
+- **网络要求**：能访问阿里云镜像仓库
+
+## 🐳 Docker 环境安装
+
 ```bash
-# 最小配置
-CPU: 4核
-内存: 8GB
-存储: 100GB SSD
-系统: Ubuntu 20.04 LTS / CentOS 8
-```
-
-### 2. 安装 Docker 环境
-```bash
-# Ubuntu 一键安装
+# Ubuntu/Debian
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker $USER
 
 # 安装 Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
-# 验证安装
-docker --version
-docker-compose --version
+# 重新登录以应用用户组变更
 ```
 
 ## ⚡ 5分钟快速部署
 
-### 步骤 1: 获取代码
+### 步骤1：获取代码
 ```bash
-# 克隆项目
-git clone https://github.com/your-org/buildingos.git
-cd buildingos/docker/deploy
+git clone <your-repository-url>
+cd buildingos.ai/docker/deploy
 ```
 
-### 步骤 2: 配置环境
+### 步骤2：配置环境
 ```bash
-# 复制配置文件
+# 复制环境变量模板
 cp .env.prod.example .env.prod
 
-# 编辑配置（必须修改密码）
-vim .env.prod
+# 编辑配置文件（必须修改密码！）
+nano .env.prod
 ```
 
-**重要：必须修改以下密码**
+**重要配置项**：
 ```bash
-DB_PASSWORD=your_strong_password_123
-REDIS_PASSWORD=your_redis_password_456  
-GRAFANA_PASSWORD=your_grafana_password_789
+# 镜像仓库配置
+DOCKER_REGISTRY=registry.cn-hangzhou.aliyuncs.com/buildingos
+
+# 版本控制
+BACKEND_VERSION=latest
+WEB_VERSION=latest
+
+# 数据库密码（必须修改！）
+POSTGRES_PASSWORD=your-strong-password-here
+REDIS_PASSWORD=your-redis-password-here
+
+# 服务器配置
+SERVER_HOST=0.0.0.0
 ```
 
-### 步骤 3: 一键部署
+### 步骤3：一键部署
 ```bash
-# 给脚本执行权限
-chmod +x ../../scripts/deploy.sh
+# 赋予执行权限
+chmod +x deploy.sh
 
-# 执行部署
-../../scripts/deploy.sh production latest
+# 首次完整部署
+./deploy.sh
+
+# 等待部署完成（约2-3分钟）
 ```
 
-### 步骤 4: 验证部署
+### 步骤4：验证部署
 ```bash
 # 检查服务状态
 docker-compose -f docker-compose.prod.yml ps
 
-# 访问应用
-curl http://localhost/health
+# 测试服务访问
+curl -f http://localhost/health      # 前端健康检查
+curl -f http://localhost:3000/health # 后端健康检查
 ```
 
 ## 🎯 访问地址

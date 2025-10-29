@@ -37,8 +37,8 @@ jobs:
       - name: Run security audit
         run: npm audit --audit-level moderate
 
-  # 构建和推送 Docker 镜像
-  build-and-push:
+  # 构建和推送应用容器镜像 (前后端)
+  build-app-images:
     needs: lint-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
@@ -85,71 +85,130 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
+  # 构建和推送基础设施镜像 (仅在基础设施变更时)
+  build-infrastructure-images:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (contains(github.event.head_commit.message, '[infra]') || startsWith(github.ref, 'refs/tags/infra-'))
+    strategy:
+      matrix:
+        service: [postgres, redis, tdengine, emqx, zlmediakit, grafana]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
+      - name: Pull and tag infrastructure images
+        run: |
+          case "${{ matrix.service }}" in
+            postgres)
+              docker pull postgres:15-alpine
+              docker tag postgres:15-alpine ${{ env.DOCKER_REGISTRY }}/postgres:15-alpine
+              docker push ${{ env.DOCKER_REGISTRY }}/postgres:15-alpine
+              ;;
+            redis)
+              docker pull redis:7-alpine
+              docker tag redis:7-alpine ${{ env.DOCKER_REGISTRY }}/redis:7-alpine
+              docker push ${{ env.DOCKER_REGISTRY }}/redis:7-alpine
+              ;;
+            tdengine)
+              docker pull tdengine/tdengine:3.3.0.0
+              docker tag tdengine/tdengine:3.3.0.0 ${{ env.DOCKER_REGISTRY }}/tdengine:3.3.0.0
+              docker push ${{ env.DOCKER_REGISTRY }}/tdengine:3.3.0.0
+              ;;
+            emqx)
+              docker pull emqx/emqx:5.4.1
+              docker tag emqx/emqx:5.4.1 ${{ env.DOCKER_REGISTRY }}/emqx:5.4.1
+              docker push ${{ env.DOCKER_REGISTRY }}/emqx:5.4.1
+              ;;
+            zlmediakit)
+              docker pull zlmediakit/zlmediakit:master
+              docker tag zlmediakit/zlmediakit:master ${{ env.DOCKER_REGISTRY }}/zlmediakit:master
+              docker push ${{ env.DOCKER_REGISTRY }}/zlmediakit:master
+              ;;
+            grafana)
+              docker pull grafana/grafana:10.2.3
+              docker tag grafana/grafana:10.2.3 ${{ env.DOCKER_REGISTRY }}/grafana:10.2.3
+              docker push ${{ env.DOCKER_REGISTRY }}/grafana:10.2.3
+              ;;
+          esac
+
   # 部署到测试环境
   deploy-staging:
-    needs: build-and-push
+    needs: build-app-images
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop'
     environment: staging
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Deploy to staging server
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USERNAME }}
+          username: ${{ secrets.STAGING_USER }}
           key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_PORT }}
           script: |
             cd /opt/buildingos
-            git pull origin develop
-            export VERSION=develop-${{ github.sha }}
-            docker-compose -f docker/deploy/docker-compose.prod.yml --env-file docker/deploy/.env.staging down
-            docker-compose -f docker/deploy/docker-compose.prod.yml --env-file docker/deploy/.env.staging pull
-            docker-compose -f docker/deploy/docker-compose.prod.yml --env-file docker/deploy/.env.staging up -d
-            docker system prune -f
+            
+            # 备份当前版本
+            ./backup.sh
+            
+            # 更新应用容器
+            ./deploy.sh --app-only --env staging
+            
+            # 健康检查
+            sleep 30
+            if ! curl -f http://localhost:3000/health; then
+              echo "Health check failed, rolling back..."
+              docker-compose -f docker-compose.staging.yml down
+              docker-compose -f docker-compose.staging.yml up -d
+              exit 1
+            fi
 
   # 部署到生产环境
   deploy-production:
-    needs: build-and-push
+    needs: build-app-images
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment: production
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
       - name: Deploy to production server
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: ${{ secrets.PRODUCTION_USERNAME }}
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT }}
           script: |
             cd /opt/buildingos
-            git fetch --tags
-            git checkout ${{ steps.version.outputs.VERSION }}
-            export VERSION=${{ steps.version.outputs.VERSION }}
             
-            # 备份当前数据
-            ./scripts/backup.sh
+            # 备份生产数据
+            ./backup.sh
             
-            # 部署新版本
-            docker-compose -f docker/deploy/docker-compose.prod.yml --env-file docker/deploy/.env.prod pull
-            docker-compose -f docker/deploy/docker-compose.prod.yml --env-file docker/deploy/.env.prod up -d
+            # 更新应用容器
+            ./deploy.sh --app-only --env production
             
             # 健康检查
-            ./scripts/health-check.sh
+            sleep 60
+            if ! curl -f http://localhost:3000/health; then
+              echo "Health check failed, rolling back..."
+              ./deploy.sh --rollback
+              exit 1
+            fi
             
             # 清理旧镜像
-            docker system prune -f
+            docker image prune -f --filter "until=72h"
 
   # 通知部署结果
   notify:
@@ -159,9 +218,9 @@ jobs:
     
     steps:
       - name: Notify deployment result
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          channel: '#deployments'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-        if: always()
+        run: |
+          if [ "${{ needs.deploy-staging.result }}" == "success" ] || [ "${{ needs.deploy-production.result }}" == "success" ]; then
+            echo "✅ Deployment successful"
+          else
+            echo "❌ Deployment failed"
+          fi
