@@ -1,0 +1,202 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    image: ${DOCKER_REGISTRY}/buildingos-backend:${VERSION}
+    container_name: buildingos-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://buildingos:${DB_PASSWORD}@postgres:5432/buildingos
+      - REDIS_URL=redis://redis:6379
+      - TDENGINE_HOST=tdengine
+      - EMQX_HOST=emqx
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      tdengine:
+        condition: service_healthy
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务
+  web:
+    image: ${DOCKER_REGISTRY}/buildingos-web:${VERSION}
+    container_name: buildingos-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - buildingos-network
+    volumes:
+      - ./ssl-certs:/etc/nginx/ssl:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: buildingos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: buildingos
+      POSTGRES_USER: buildingos
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buildingos -d buildingos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: buildingos-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # TDengine 时序数据库
+  tdengine:
+    image: tdengine/tdengine:3.3.0.0
+    container_name: buildingos-tdengine
+    restart: unless-stopped
+    environment:
+      TAOS_FQDN: buildingos-tdengine
+      TAOS_FIRST_EP: buildingos-tdengine
+      TAOS_ARBITRATOR: buildingos-tdengine
+    volumes:
+      - tdengine_data:/var/lib/taos
+      - tdengine_log:/var/log/taos
+    ports:
+      - "6030:6030"
+      - "6041:6041"
+      - "6043-6044:6043-6044"
+      - "6060:6060"
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD-SHELL", "taos -s 'show databases;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # EMQX MQTT 消息代理
+  emqx:
+    image: emqx/emqx:5.4.1
+    container_name: buildingos-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_NAME: buildingos-emqx
+      EMQX_HOST: buildingos-emqx
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8084:8084"
+      - "8883:8883"
+      - "18083:18083"
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ZLMediaKit 流媒体服务器
+  zlmediakit:
+    image: zlmediakit/zlmediakit:master
+    container_name: buildingos-zlmediakit
+    restart: unless-stopped
+    ports:
+      - "1935:1935"
+      - "8000:8000"
+      - "8080:8080"
+      - "8443:8443"
+      - "8554:8554"
+      - "9000:9000"
+      - "10000:10000/udp"
+    volumes:
+      - zlmediakit_data:/opt/media
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/index/api/getServerConfig"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana 监控面板
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: buildingos-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_INSTALL_PLUGINS: tdengine-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - buildingos-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  tdengine_data:
+    driver: local
+  tdengine_log:
+    driver: local
+  emqx_data:
+    driver: local
+  emqx_log:
+    driver: local
+  zlmediakit_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  buildingos-network:
+    driver: bridge
+    name: buildingos-network
