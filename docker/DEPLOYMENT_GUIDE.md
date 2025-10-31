@@ -119,8 +119,8 @@ docker images | findstr buildingos
    docker login swr.cn-east-3.myhuaweicloud.com
    
    # 使用以下凭据：
-   # 用户名: cn-east-3@HQVLKZGBVNHQJDXVQHQY
-   # 密码: f4c2c8b7c8b8e8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4
+    # 用户名: cn-east-3@HPUA47E21TXTL1E4MHAJ
+    # 密码: 615e168df23e9bf7f95b5414b6e0c88b0cfaa9438f53fda6f64a691d4982a5ab
    
    # 验证登录成功
    docker system info | grep Registry
@@ -251,8 +251,8 @@ ping swr.cn-east-3.myhuaweicloud.com
 ```
 
 **华为云 SWR 登录凭据**:
-- 用户名: `cn-east-3@HQVLKZGBVNHQJDXVQHQY`
-- 密码: `f4c2c8b7c8b8e8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4`
+- 用户名: `cn-east-3@HPUA47E21TXTL1E4MHAJ`
+- 密码: `615e168df23e9bf7f95b5414b6e0c88b0cfaa9438f53fda6f64a691d4982a5ab`
 
 #### 2. **服务启动失败**
 ```bash

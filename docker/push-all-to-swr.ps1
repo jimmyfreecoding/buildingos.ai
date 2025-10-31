@@ -17,8 +17,8 @@ function Write-ColorOutput {
 }
 
 $SWR_REGISTRY = "swr.$Region.myhuaweicloud.com"
-$HARDCODED_USERNAME = "cn-east-3@HQVLKZGBVNHQJDXVQHQY"
-$HARDCODED_PASSWORD = "f4c2c8b7c8b8e8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4"
+$HARDCODED_USERNAME = "cn-east-3@HPUA47E21TXTL1E4MHAJ"
+$HARDCODED_PASSWORD = "615e168df23e9bf7f95b5414b6e0c88b0cfaa9438f53fda6f64a691d4982a5ab"
 
 Write-ColorOutput "=== BuildingOS AI - Push All Containers to SWR ===" "Blue"
 Write-ColorOutput "Version: $Version" "Yellow"
