@@ -113,10 +113,17 @@ docker images | findstr buildingos
    sudo systemctl enable docker
    ```
 
-2. **华为云 SWR 登录**
+2. **华为云 SWR 登录** ⚠️ **必须步骤**
    ```bash
+   # 登录华为云 SWR（必须执行，否则无法拉取镜像）
    docker login swr.cn-east-3.myhuaweicloud.com
-   # 输入用户名和密码
+   
+   # 使用以下凭据：
+   # 用户名: cn-east-3@HQVLKZGBVNHQJDXVQHQY
+   # 密码: f4c2c8b7c8b8e8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4
+   
+   # 验证登录成功
+   docker system info | grep Registry
    ```
 
 ### 一键部署命令
@@ -223,28 +230,83 @@ EOF
 
 ### 故障排除
 
-1. **服务启动失败**
-   ```bash
-   # 查看详细日志
-   docker-compose -f docker-compose.production.yml logs service_name
-   
-   # 检查容器状态
-   docker ps -a
-   ```
+#### 1. **镜像拉取失败** (最常见问题)
 
-2. **网络连接问题**
-   ```bash
-   # 检查网络
-   docker network ls
-   docker network inspect buildingos-prod-network
-   ```
+**错误信息**: `failed to resolve reference "swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest": not found`
 
-3. **数据卷问题**
-   ```bash
-   # 查看数据卷
-   docker volume ls
-   docker volume inspect buildingos_prod_postgres_data
-   ```
+**解决方案**:
+```bash
+# 1. 确保已登录华为云 SWR
+docker login swr.cn-east-3.myhuaweicloud.com
+
+# 2. 验证登录状态
+docker system info | grep Registry
+
+# 3. 手动拉取镜像测试
+docker pull swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+docker pull swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest
+
+# 4. 检查网络连接
+ping swr.cn-east-3.myhuaweicloud.com
+```
+
+**华为云 SWR 登录凭据**:
+- 用户名: `cn-east-3@HQVLKZGBVNHQJDXVQHQY`
+- 密码: `f4c2c8b7c8b8e8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4b8b4`
+
+#### 2. **服务启动失败**
+```bash
+# 查看详细日志
+docker-compose -f docker-compose.production.yml logs service_name
+
+# 检查容器状态
+docker ps -a
+
+# 重启特定服务
+docker-compose -f docker-compose.production.yml restart service_name
+```
+
+#### 3. **网络连接问题**
+```bash
+# 检查网络
+docker network ls
+docker network inspect buildingos-prod-network
+
+# 重新创建网络
+docker-compose -f docker-compose.production.yml down
+docker-compose -f docker-compose.production.yml up -d
+```
+
+#### 4. **数据卷问题**
+```bash
+# 查看数据卷
+docker volume ls
+docker volume inspect buildingos_prod_postgres_data
+
+# 清理并重新创建卷（注意：会丢失数据）
+docker-compose -f docker-compose.production.yml down -v
+docker-compose -f docker-compose.production.yml up -d
+```
+
+#### 5. **端口冲突**
+```bash
+# 检查端口占用
+netstat -tulpn | grep :80
+netstat -tulpn | grep :3001
+
+# 修改 docker-compose.production.yml 中的端口映射
+# 例如：将 "80:80" 改为 "8080:80"
+```
+
+#### 6. **资源不足**
+```bash
+# 检查系统资源
+docker system df
+docker stats
+
+# 清理未使用的资源
+docker system prune -a
+```
 
 ### 优势总结
 
