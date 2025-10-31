@@ -1,0 +1,295 @@
+# BuildingOS AI - 生产环境 Docker Compose 配置
+# 使用华为云 SWR 镜像，独立的生产数据卷
+
+services:
+  # 1. 前端服务 (Vue.js + Nginx)
+  web:
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+    container_name: buildingos-web-prod
+    ports:
+      - "80:80"
+    volumes:
+      - web_logs_prod:/var/log/nginx
+    networks:
+      - buildingos_prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 2. 后端服务 (NestJS)
+  backend:
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest
+    container_name: buildingos-backend-prod
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://buildingos:buildingos123@postgres:5432/buildingos
+      - REDIS_URL=redis://redis:6379
+      - TDENGINE_URL=tdengine:6030
+      - LOG_LEVEL=info
+      - MAX_FILE_SIZE=10MB
+    volumes:
+      - backend_logs_prod:/app/logs
+      - backend_uploads_prod:/app/uploads
+    networks:
+      - buildingos_prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      tdengine:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "node", "/app/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 3. PostgreSQL 数据库
+  postgres:
+    image: postgres:15
+    container_name: buildingos-postgres-prod
+    environment:
+      - POSTGRES_DB=buildingos
+      - POSTGRES_USER=buildingos
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-buildingos_prod_2024}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - buildingos_prod_postgres_data:/var/lib/postgresql/data
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buildingos -d buildingos"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # 4. Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: buildingos-redis-prod
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_prod_2024} --appendonly yes
+    volumes:
+      - buildingos_prod_redis_data:/data
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # 5. TDengine 时序数据库
+  tdengine:
+    image: tdengine/tdengine:3.3.2.0
+    container_name: buildingos-tdengine-prod
+    environment:
+      - TAOS_FQDN=buildingos-tdengine-prod
+      - TAOS_FIRST_EP=buildingos-tdengine-prod
+      - TAOS_SERVER_PORT=6030
+      - TAOS_HTTP_PORT=6041
+    volumes:
+      - buildingos_prod_tdengine_data:/var/lib/taos
+      - buildingos_prod_tdengine_log:/var/log/taos
+    ports:
+      - "6030:6030"
+      - "6041:6041"
+      - "6043:6043"
+      - "6044:6044"
+      - "6060:6060"
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "taos -s 'show databases;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # 6. ZLMediaKit 流媒体服务器
+  zlmediakit:
+    image: zlmediakit/zlmediakit:master
+    container_name: buildingos-zlmediakit-prod
+    volumes:
+      - buildingos_prod_zlmediakit_data:/opt/media
+    ports:
+      - "1935:1935"   # RTMP
+      - "8080:80"     # HTTP
+      - "8443:443"    # HTTPS
+      - "8554:554"    # RTSP
+      - "10000:10000" # WebRTC
+      - "8000:8000/udp" # RTP
+      - "9000:9000/udp" # RTP
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/index/api/getServerConfig"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # 7. EMQX MQTT 消息代理
+  emqx:
+    image: emqx/emqx:5.8.0
+    container_name: buildingos-emqx-prod
+    environment:
+      - EMQX_NAME=buildingos-emqx-prod
+      - EMQX_HOST=buildingos-emqx-prod
+      - EMQX_NODE__COOKIE=emqxsecretcookie_prod
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=${EMQX_PASSWORD:-emqx_prod_2024}
+    volumes:
+      - buildingos_prod_emqx_data:/opt/emqx/data
+      - buildingos_prod_emqx_log:/opt/emqx/log
+    ports:
+      - "1883:1883"   # MQTT
+      - "8083:8083"   # MQTT over WebSocket
+      - "8084:8084"   # MQTT over SSL WebSocket
+      - "8883:8883"   # MQTT over SSL
+      - "18083:18083" # Dashboard
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # 8. Grafana 监控面板
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: buildingos-grafana-prod
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-grafana_prod_2024}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=tdengine-datasource
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - buildingos_prod_grafana_data:/var/lib/grafana
+      - buildingos_prod_grafana_logs:/var/log/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    depends_on:
+      - tdengine
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+# 网络配置
+networks:
+  buildingos-prod-network:
+    driver: bridge
+    name: buildingos-prod-network
+
+# 生产环境数据卷
+volumes:
+  buildingos_prod_postgres_data:
+    name: buildingos_prod_postgres_data
+  buildingos_prod_redis_data:
+    name: buildingos_prod_redis_data
+  buildingos_prod_tdengine_data:
+    name: buildingos_prod_tdengine_data
+  buildingos_prod_tdengine_log:
+    name: buildingos_prod_tdengine_log
+  buildingos_prod_grafana_data:
+    name: buildingos_prod_grafana_data
+  buildingos_prod_grafana_logs:
+    name: buildingos_prod_grafana_logs
+  buildingos_prod_emqx_data:
+    name: buildingos_prod_emqx_data
+  buildingos_prod_emqx_log:
+    name: buildingos_prod_emqx_log
+  buildingos_prod_zlmediakit_data:
+    name: buildingos_prod_zlmediakit_data
+  buildingos_prod_backend_uploads:
+    name: buildingos_prod_backend_uploads
+  buildingos_prod_backend_backups:
+    name: buildingos_prod_backend_backups

@@ -1,0 +1,111 @@
+# Ingress 控制器配置
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildingos-ingress
+  namespace: buildingos
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  ingressClassName: nginx
+  rules:
+  # 主域名配置
+  - host: buildingos.local
+    http:
+      paths:
+      # 前端应用
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: buildingos-web
+            port:
+              number: 80
+      # 后端 API
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: buildingos-backend
+            port:
+              number: 3001
+  # Grafana 子域名
+  - host: grafana.buildingos.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+---
+# 如果使用 LoadBalancer 类型的服务（适用于云环境）
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-web-lb
+  namespace: buildingos
+  labels:
+    app: buildingos-web
+  annotations:
+    # 华为云 CCE LoadBalancer 注解
+    kubernetes.io/elb.class: union
+    kubernetes.io/elb.autocreate: '{"type":"public","bandwidth_name":"cce-bandwidth","bandwidth_chargemode":"traffic","bandwidth_size":5,"bandwidth_sharetype":"PER","eip_type":"5_bgp"}'
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: buildingos-web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-backend-lb
+  namespace: buildingos
+  labels:
+    app: buildingos-backend
+  annotations:
+    # 华为云 CCE LoadBalancer 注解
+    kubernetes.io/elb.class: union
+    kubernetes.io/elb.autocreate: '{"type":"public","bandwidth_name":"cce-bandwidth","bandwidth_chargemode":"traffic","bandwidth_size":5,"bandwidth_sharetype":"PER","eip_type":"5_bgp"}'
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 3001
+    targetPort: 3001
+    protocol: TCP
+  selector:
+    app: buildingos-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-lb
+  namespace: buildingos
+  labels:
+    app: grafana
+  annotations:
+    # 华为云 CCE LoadBalancer 注解
+    kubernetes.io/elb.class: union
+    kubernetes.io/elb.autocreate: '{"type":"public","bandwidth_name":"cce-bandwidth","bandwidth_chargemode":"traffic","bandwidth_size":5,"bandwidth_sharetype":"PER","eip_type":"5_bgp"}'
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  selector:
+    app: grafana
