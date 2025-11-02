@@ -180,12 +180,12 @@ docker-compose -f docker-compose.production.yml up -d
 |------|------|------|------|
 | **前端** | `swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest` | 80 | React + Nginx |
 | **后端** | `swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest` | 3001 | NestJS API |
-| **PostgreSQL** | `postgres:15` | 5432 | 主数据库 |
-| **Redis** | `redis:7-alpine` | 6379 | 缓存服务 |
-| **TDengine** | `tdengine/tdengine:3.3.2.0` | 6030,6041 | 时序数据库 |
-| **EMQX** | `emqx/emqx:5.8.0` | 1883,8083,18083 | MQTT 消息代理 |
-| **ZLMediaKit** | `zlmediakit/zlmediakit:master` | 1935,8080,8554 | 流媒体服务器 |
-| **Grafana** | `grafana/grafana:11.2.0` | 3000 | 监控面板 |
+| **PostgreSQL** | `swr.cn-east-3.myhuaweicloud.com/geeqee/postgres:15` | 5432 | 主数据库 |
+| **Redis** | `swr.cn-east-3.myhuaweicloud.com/geeqee/redis:7-alpine` | 6379 | 缓存服务 |
+| **TDengine** | `swr.cn-east-3.myhuaweicloud.com/geeqee/tdengine:3.3.2.0` | 6030,6041 | 时序数据库 |
+| **EMQX** | `swr.cn-east-3.myhuaweicloud.com/geeqee/emqx:5.8.0` | 1883,8083,18083 | MQTT 消息代理 |
+| **ZLMediaKit** | `swr.cn-east-3.myhuaweicloud.com/geeqee/zlmediakit:master` | 1935,8080,8554 | 流媒体服务器 |
+| **Grafana** | `swr.cn-east-3.myhuaweicloud.com/geeqee/grafana:11.2.0` | 3000 | 监控面板 |
 
 ### 自动配置功能
 
@@ -289,6 +289,23 @@ ping swr.cn-east-3.myhuaweicloud.com
 **华为云 SWR 登录凭据**:
 - 用户名: `cn-east-3@HPUA47E21TXTL1E4MHAJ`
 - 密码: `615e168df23e9bf7f95b5414b6e0c88b0cfaa9438f53fda6f64a691d4982a5ab`
+
+#### 1.1 **卷未定义错误**
+**错误信息**: `service "backend" refers to undefined volume backend_logs_prod`
+
+**解决方案**:
+```
+# 确认 docker-compose.production.yml 顶层 volumes 中包含：
+volumes:
+  web_logs_prod:
+  backend_logs_prod:
+  backend_uploads_prod:
+```
+保存后重新执行：
+```
+docker-compose -f docker-compose.production.yml config
+docker-compose -f docker-compose.production.yml up -d
+```
 
 #### 2. **服务启动失败**
 ```bash
