@@ -27,7 +27,7 @@ services:
   # 2. 后端服务 (NestJS)
   backend:
     build:
-      context: ../../bulidingos
+      context: ../../buildingos
       dockerfile: ../buildingos.ai/docker/Dockerfile.backend
     container_name: buildingos-backend
     environment:
