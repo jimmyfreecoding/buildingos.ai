@@ -19,6 +19,10 @@ RUN npm run build
 # 安装生产依赖
 RUN npm ci --only=production --legacy-peer-deps && npm cache clean --force
 
+# 补充运行时所需的 peer 依赖，避免生产环境缺失
+# 注意：这不会修改 package.json，仅确保镜像内可用
+RUN npm install --no-save zod --legacy-peer-deps && npm cache clean --force
+
 # 生产阶段
 FROM node:22-alpine AS production
 
