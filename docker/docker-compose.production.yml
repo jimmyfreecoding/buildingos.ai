@@ -11,7 +11,7 @@ services:
     volumes:
       - web_logs_prod:/var/log/nginx
     networks:
-      - buildingos_prod
+      - buildingos-prod-network
     restart: unless-stopped
     deploy:
       resources:
@@ -36,8 +36,8 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://buildingos:buildingos123@postgres:5432/buildingos
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://buildingos:buildingos_prod_2024@postgres:5432/buildingos
+      - REDIS_URL=redis://:redis_prod_2024@redis:6379
       - TDENGINE_URL=tdengine:6030
       - LOG_LEVEL=info
       - MAX_FILE_SIZE=10MB
@@ -45,7 +45,7 @@ services:
       - backend_logs_prod:/app/logs
       - backend_uploads_prod:/app/uploads
     networks:
-      - buildingos_prod
+      - buildingos-prod-network
     depends_on:
       postgres:
         condition: service_healthy
