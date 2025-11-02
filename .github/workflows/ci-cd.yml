@@ -9,7 +9,9 @@ on:
 
 env:
   DOCKER_REGISTRY: registry.cn-hangzhou.aliyuncs.com/buildingos
-  DOCKER_BUILDKIT: 1
+  # 当目标是华为云 SWR 时，为避免 OCI manifest 解析问题请关闭 BuildKit
+  # 参考 docker/DEPLOYMENT_GUIDE.md 的“SWR 兼容性注意事项”
+  DOCKER_BUILDKIT: 0
 
 jobs:
   # 代码质量检查

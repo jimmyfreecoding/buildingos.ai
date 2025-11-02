@@ -91,6 +91,42 @@ docker images | findstr buildingos
 
 ---
 
+### SWR 兼容性注意事项（manifest.json 解析错误）
+
+华为云 SWR 对 OCI manifest 的兼容性有限，如果使用 Docker BuildKit 或 Buildx 构建的镜像，推送时可能出现如下错误：
+
+```
+error from registry: Invalid image, fail to parse 'manifest.json'
+```
+
+为避免该问题，请在构建前关闭 BuildKit，使用经典构建生成 Docker v2 schema 的 manifest：
+
+PowerShell 示例（Windows）：
+
+```powershell
+# 关闭 BuildKit 并用 Compose 重建前后端
+$env:DOCKER_BUILDKIT = "0"
+docker compose -f .\docker-compose.full.yml build --no-cache web backend
+
+# 使用脚本仅推送前后端镜像到 SWR
+./push-all-to-swr.ps1 -UseHardcodedLogin -Services web,backend
+
+# 验证拉取
+docker pull swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+docker pull swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest
+```
+
+Shell 示例（Linux/macOS）：
+
+```bash
+export DOCKER_BUILDKIT=0
+docker compose -f ./docker/docker-compose.full.yml build --no-cache web backend
+
+# 推送与验证请参考上面的命令（将路径与语法调整为对应平台）
+```
+
+建议：在 CI 或自动化构建到 SWR 的流程中，显式设置 `DOCKER_BUILDKIT=0`，确保生成的镜像使用 Docker v2 manifest，避免 SWR 解析失败。
+
 ## 🚀 新服务器一键部署
 
 ### 概述
