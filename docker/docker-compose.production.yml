@@ -36,9 +36,20 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
+      # 兼容多种配置方式：保留 DATABASE_URL，并显式声明 DB_* 变量
       - DATABASE_URL=postgresql://buildingos:buildingos_prod_2024@postgres:5432/buildingos
+      - DB_TYPE=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=buildingos
+      - DB_PASSWORD=buildingos_prod_2024
+      - DB_NAME=buildingos
       - REDIS_URL=redis://:redis_prod_2024@redis:6379
       - TDENGINE_URL=tdengine:6030
+      # MQTT 配置：使用内部服务名 emqx，通过 WebSocket 连接
+      - MQTT_BROKER_URL=ws://emqx:8083/mqtt
+      - MQTT_USERNAME=buildingos
+      - MQTT_PASSWORD=buildingos_emqx_2024
       - LOG_LEVEL=info
       - MAX_FILE_SIZE=10MB
     volumes:
@@ -71,7 +82,7 @@ services:
 
   # 3. PostgreSQL 数据库
   postgres:
-    image: postgres:15
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/postgres:15
     container_name: buildingos-postgres-prod
     environment:
       - POSTGRES_DB=buildingos
@@ -80,6 +91,8 @@ services:
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
     volumes:
       - buildingos_prod_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - buildingos-prod-network
     restart: unless-stopped
@@ -100,7 +113,7 @@ services:
 
   # 4. Redis 缓存
   redis:
-    image: redis:7-alpine
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/redis:7-alpine
     container_name: buildingos-redis-prod
     command: redis-server --requirepass ${REDIS_PASSWORD:-redis_prod_2024} --appendonly yes
     volumes:
@@ -125,7 +138,7 @@ services:
 
   # 5. TDengine 时序数据库
   tdengine:
-    image: tdengine/tdengine:3.3.2.0
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/tdengine:3.3.2.0
     container_name: buildingos-tdengine-prod
     environment:
       - TAOS_FQDN=buildingos-tdengine-prod
@@ -161,7 +174,7 @@ services:
 
   # 6. ZLMediaKit 流媒体服务器
   zlmediakit:
-    image: zlmediakit/zlmediakit:master
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/zlmediakit:master
     container_name: buildingos-zlmediakit-prod
     volumes:
       - buildingos_prod_zlmediakit_data:/opt/media
@@ -193,7 +206,7 @@ services:
 
   # 7. EMQX MQTT 消息代理
   emqx:
-    image: emqx/emqx:5.8.0
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/emqx:5.8.0
     container_name: buildingos-emqx-prod
     environment:
       - EMQX_NAME=buildingos-emqx-prod
@@ -211,7 +224,9 @@ services:
       - "8883:8883"   # MQTT over SSL
       - "18083:18083" # Dashboard
     networks:
-      - buildingos-prod-network
+      buildingos-prod-network:
+        aliases:
+          - buildingos-emqx
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
@@ -230,7 +245,7 @@ services:
 
   # 8. Grafana 监控面板
   grafana:
-    image: grafana/grafana:11.2.0
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/grafana:11.2.0
     container_name: buildingos-grafana-prod
     environment:
       - GF_SECURITY_ADMIN_USER=admin
@@ -271,6 +286,12 @@ networks:
 
 # 生产环境数据卷
 volumes:
+  web_logs_prod:
+    name: web_logs_prod
+  backend_logs_prod:
+    name: backend_logs_prod
+  backend_uploads_prod:
+    name: backend_uploads_prod
   buildingos_prod_postgres_data:
     name: buildingos_prod_postgres_data
   buildingos_prod_redis_data:
