@@ -1,0 +1,1019 @@
+# BuildingOS - Kubernetes 一体化部署清单（生产）
+# 说明：将 namespace、存储、数据库、应用、Ingress 等资源合并为单文件，便于在管理平台导入
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildingos
+  labels:
+    name: buildingos
+    environment: production
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildingos-config
+  namespace: buildingos
+data:
+  POSTGRES_DB: "buildingos"
+  POSTGRES_USER: "buildingos"
+  REDIS_PORT: "6379"
+  TDENGINE_PORT: "6030"
+  TDENGINE_HTTP_PORT: "6041"
+  NODE_ENV: "production"
+  API_PREFIX: "api/v1"
+  PORT: "3001"
+  LOG_LEVEL: "info"
+  MAX_FILE_SIZE: "10MB"
+  UPLOAD_DEST: "/app/uploads"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: buildingos-secrets
+  namespace: buildingos
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "buildingos_k8s_2024"
+  REDIS_PASSWORD: "redis_k8s_2024"
+  TDENGINE_PASSWORD: "taos_k8s_2024"
+  JWT_SECRET: "BuildingOS_K8s_JWT_Secret_2024"
+  MQTT_PASSWORD: "mqtt_k8s_2024"
+
+---
+# 如使用私有 SWR 镜像，请先创建 imagePullSecret，并在 Pod 中引用：
+# kubectl create secret docker-registry swr-cred \
+#   --docker-server=swr.cn-east-3.myhuaweicloud.com \
+#   --docker-username=<用户名> --docker-password=<密码> \
+#   -n buildingos
+
+---
+# 存储类与持久卷（单节点集群示例：hostPath，无动态存储）
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: buildingos-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/postgres
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: buildingos-storage
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/redis
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: buildingos-storage
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tdengine-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/tdengine
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tdengine-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: buildingos-storage
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/grafana
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: buildingos-storage
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backend-data-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/backend
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-data-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: buildingos-storage
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: emqx-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/emqx
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emqx-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: buildingos-storage
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: zlmediakit-pv
+  namespace: buildingos
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: buildingos-storage
+  hostPath:
+    path: /data/buildingos/zlmediakit
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zlmediakit-pvc
+  namespace: buildingos
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: buildingos-storage
+
+---
+# PostgreSQL
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: buildingos
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "buildingos"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "buildingos"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: buildingos
+  labels:
+    app: postgres
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+
+---
+# Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: buildingos
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        command: ["redis-server", "--requirepass", "$(REDIS_PASSWORD)", "--appendonly", "yes"]
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: REDIS_PASSWORD
+        volumeMounts:
+        - name: redis-storage
+          mountPath: /data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "-a", "$(REDIS_PASSWORD)", "ping"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "-a", "$(REDIS_PASSWORD)", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: redis-storage
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: buildingos
+  labels:
+    app: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+  selector:
+    app: redis
+
+---
+# TDengine
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdengine
+  namespace: buildingos
+  labels:
+    app: tdengine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tdengine
+  template:
+    metadata:
+      labels:
+        app: tdengine
+    spec:
+      containers:
+      - name: tdengine
+        image: tdengine/tdengine:3.3.2.0
+        ports:
+        - containerPort: 6030
+        - containerPort: 6041
+        env:
+        - name: TAOS_FQDN
+          value: "tdengine"
+        - name: TAOS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: TDENGINE_PASSWORD
+        volumeMounts:
+        - name: tdengine-storage
+          mountPath: /var/lib/taos
+        - name: tdengine-log
+          mountPath: /var/log/taos
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          tcpSocket:
+            port: 6030
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          tcpSocket:
+            port: 6030
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: tdengine-storage
+        persistentVolumeClaim:
+          claimName: tdengine-pvc
+      - name: tdengine-log
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tdengine
+  namespace: buildingos
+  labels:
+    app: tdengine
+spec:
+  ports:
+  - name: native
+    port: 6030
+    targetPort: 6030
+  - name: http
+    port: 6041
+    targetPort: 6041
+  selector:
+    app: tdengine
+
+---
+# Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildingos-backend
+  namespace: buildingos
+  labels:
+    app: buildingos-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: buildingos-backend
+  template:
+    metadata:
+      labels:
+        app: buildingos-backend
+    spec:
+      # imagePullSecrets:
+      # - name: swr-cred
+      containers:
+      - name: backend
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: NODE_ENV
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: PORT
+        - name: DATABASE_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: POSTGRES_DB
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@redis:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: REDIS_PASSWORD
+        - name: TDENGINE_URL
+          value: "tdengine:6030"
+        - name: TDENGINE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: TDENGINE_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: JWT_SECRET
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: LOG_LEVEL
+        - name: MAX_FILE_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: buildingos-config
+              key: MAX_FILE_SIZE
+        volumeMounts:
+        - name: backend-data
+          mountPath: /app/uploads
+          subPath: uploads
+        - name: backend-data
+          mountPath: /app/logs
+          subPath: logs
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: backend-data
+        persistentVolumeClaim:
+          claimName: backend-data-pvc
+      initContainers:
+      - name: wait-for-postgres
+        image: postgres:15-alpine
+        command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h postgres -p 5432 -U buildingos; do
+            echo "Waiting for PostgreSQL...";
+            sleep 2;
+          done
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: POSTGRES_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-backend
+  namespace: buildingos
+  labels:
+    app: buildingos-backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+  selector:
+    app: buildingos-backend
+
+---
+# Web (Nginx)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildingos-web
+  namespace: buildingos
+  labels:
+    app: buildingos-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: buildingos-web
+  template:
+    metadata:
+      labels:
+        app: buildingos-web
+    spec:
+      # imagePullSecrets:
+      # - name: swr-cred
+      containers:
+      - name: web
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-web
+  namespace: buildingos
+  labels:
+    app: buildingos-web
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: buildingos-web
+
+---
+# Grafana
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: buildingos
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:11.2.0
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin123"
+        - name: GF_INSTALL_PLUGINS
+          value: "tdengine-datasource"
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+      volumes:
+      - name: grafana-storage
+        persistentVolumeClaim:
+          claimName: grafana-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: buildingos
+  labels:
+    app: grafana
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: grafana
+
+---
+# EMQX (MQTT)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+  namespace: buildingos
+  labels:
+    app: emqx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      containers:
+      - name: emqx
+        image: emqx/emqx:5.8.0
+        ports:
+        - containerPort: 1883
+        - containerPort: 8083
+        - containerPort: 8084
+        - containerPort: 8883
+        - containerPort: 18083
+        env:
+        - name: EMQX_NAME
+          value: emqx
+        - name: EMQX_HOST
+          value: emqx
+        - name: EMQX_NODE__COOKIE
+          value: emqxsecretcookie_prod
+        - name: EMQX_DASHBOARD__DEFAULT_USERNAME
+          value: admin
+        - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: buildingos-secrets
+              key: MQTT_PASSWORD
+        volumeMounts:
+        - name: emqx-data
+          mountPath: /opt/emqx/data
+        - name: emqx-log
+          mountPath: /opt/emqx/log
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 18083
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 18083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: emqx-data
+        persistentVolumeClaim:
+          claimName: emqx-pvc
+      - name: emqx-log
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  namespace: buildingos
+  labels:
+    app: emqx
+spec:
+  type: ClusterIP
+  ports:
+  - name: mqtt
+    port: 1883
+    targetPort: 1883
+  - name: ws
+    port: 8083
+    targetPort: 8083
+  - name: wss
+    port: 8084
+    targetPort: 8084
+  - name: mqtts
+    port: 8883
+    targetPort: 8883
+  - name: dashboard
+    port: 18083
+    targetPort: 18083
+  selector:
+    app: emqx
+
+---
+# ZLMediaKit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zlmediakit
+  namespace: buildingos
+  labels:
+    app: zlmediakit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zlmediakit
+  template:
+    metadata:
+      labels:
+        app: zlmediakit
+    spec:
+      containers:
+      - name: zlmediakit
+        image: zlmediakit/zlmediakit:master
+        ports:
+        - containerPort: 1935   # RTMP
+        - containerPort: 80     # HTTP
+        - containerPort: 554    # RTSP
+        - containerPort: 10000  # RTP/WebRTC
+        env:
+        - name: ZLM_HTTP_port
+          value: "80"
+        - name: ZLM_RTSP_port
+          value: "554"
+        - name: ZLM_RTMP_port
+          value: "1935"
+        - name: ZLM_RTP_port
+          value: "10000"
+        - name: ZLM_API_secret
+          value: "buildingos"
+        volumeMounts:
+        - name: zlmediakit-storage
+          mountPath: /opt/media
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /index/api/getServerConfig
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /index/api/getServerConfig
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: zlmediakit-storage
+        persistentVolumeClaim:
+          claimName: zlmediakit-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zlmediakit
+  namespace: buildingos
+  labels:
+    app: zlmediakit
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: rtmp
+    port: 1935
+    targetPort: 1935
+  - name: rtsp
+    port: 554
+    targetPort: 554
+  - name: rtp
+    port: 10000
+    targetPort: 10000
+  selector:
+    app: zlmediakit
+
+---
+# Ingress（包含 / 与 /api，以及 /mqtt -> EMQX WebSocket）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildingos-ingress
+  namespace: buildingos
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: buildingos.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: buildingos-web
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: buildingos-backend
+            port:
+              number: 3001
+      - path: /mqtt
+        pathType: Prefix
+        backend:
+          service:
+            name: emqx
+            port:
+              number: 8083
+  - host: grafana.buildingos.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
