@@ -57,24 +57,21 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node-RED 流程编排（使用项目根 settings.js，预安装指定节点）
+  # Node-RED 流程编排（使用预装镜像，无需首次启动安装）
   nodered:
-    image: nodered/node-red:latest
+    image: docker-nodered:latest
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.nodered
     container_name: buildingos-nodered
     ports:
       - "1880:1880"
     volumes:
       - nodered_data:/data
-      - ../settings.js:/data/settings.js
     networks:
       - buildingos-network
     restart: unless-stopped
-    user: "0"
-    environment:
-      - NPM_CONFIG_UNSAFE_PERM=true
-      - NPM_CONFIG_LOGLEVEL=info
-      - NODE_PATH=/data/node_modules
-    entrypoint: ["/bin/sh","-lc","set -e; mkdir -p /data; if [ ! -f /data/package.json ]; then echo '{}' > /data/package.json; fi; npm --prefix /data pkg set name='nodered-data' private=true; npm install --prefix /data --omit=dev --no-audit --no-fund node-red-contrib-easy-device node-red-contrib-lifesmart node-red-contrib-mqtt-tdengine @jhe.zheng/node-red-make-iot-smart node-red-contrib-modbus node-red-node-mysql node-red-contrib-postgresql node-red-contrib-cron-plus node-red-contrib-moment node-red-contrib-weather; cd /usr/src/node-red; exec npm --no-update-notifier --no-fund start -- --userDir /data"]
+    # 预装节点和 settings.js 已包含于镜像，首次挂载命名卷将自动复制
     deploy:
       resources:
         limits:

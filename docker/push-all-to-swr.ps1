@@ -48,7 +48,17 @@ if ($UseHardcodedLogin) {
     }
 } else {
     Write-ColorOutput "[INFO] Please login to SWR manually" "Yellow"
-    Write-ColorOutput "Command: docker login $SWR_REGISTRY" "Yellow"
+Write-ColorOutput "Command: docker login $SWR_REGISTRY" "Yellow"
+    exit 1
+}
+
+# Ensure prebuilt Node-RED image exists locally; do not build here
+try {
+    docker image inspect docker-nodered:latest | Out-Null
+    Write-ColorOutput "[INFO] Prebuilt Node-RED image found locally" "Yellow"
+} catch {
+    Write-ColorOutput "[ERROR] Prebuilt Node-RED image not found locally" "Red"
+    Write-ColorOutput "Please build it first: docker compose -f docker/docker-compose.full.yml build nodered" "Yellow"
     exit 1
 }
 
@@ -62,7 +72,7 @@ $imageList = @(
     "emqx/emqx:5.8.0,$SWR_REGISTRY/$Namespace/emqx:5.8.0,EMQX MQTT Broker",
     "grafana/grafana:11.2.0,$SWR_REGISTRY/$Namespace/grafana:11.2.0,Grafana Dashboard",
     "zlmediakit/zlmediakit:master,$SWR_REGISTRY/$Namespace/zlmediakit:master,ZLMediaKit Server",
-    "nodered/node-red:latest,$SWR_REGISTRY/$Namespace/node-red:$Version,Node-RED"
+    "docker-nodered:latest,$SWR_REGISTRY/$Namespace/node-red:prebuilt,Node-RED Prebuilt"
 )
 
 $successCount = 0
@@ -95,15 +105,25 @@ foreach ($imageInfo in $imageList) {
         continue
     }
     
-    # Push image
+    # Push image with retry
     Write-ColorOutput "[INFO] Pushing image to SWR..." "Blue"
-    try {
-        docker push $remoteImage
-        Write-ColorOutput "[SUCCESS] $imageName pushed successfully" "Green"
-        $successCount++
-    } catch {
-        Write-ColorOutput "[ERROR] $imageName push failed: $_" "Red"
+    $maxAttempts = 3
+    $attempt = 1
+    $pushSucceeded = $false
+    while (-not $pushSucceeded -and $attempt -le $maxAttempts) {
+        $pushOutput = docker push $remoteImage 2>&1
+        if ($LASTEXITCODE -eq 0 -and -not ($pushOutput -match "error from registry")) {
+            $pushSucceeded = $true
+            Write-ColorOutput "[SUCCESS] $imageName pushed successfully" "Green"
+            $successCount++
+        } else {
+            Write-ColorOutput "[WARNING] $imageName push attempt $attempt failed" "Yellow"
+            Write-Host $pushOutput
+            $attempt++
+            if ($attempt -le $maxAttempts) { Start-Sleep -Seconds (2 * $attempt) }
+        }
     }
+    if (-not $pushSucceeded) { Write-ColorOutput "[ERROR] $imageName push failed after retries" "Red" }
 }
 
 # Summary

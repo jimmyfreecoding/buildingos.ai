@@ -1,0 +1,29 @@
+FROM nodered/node-red:latest
+
+# 切到 root 以便写入 /data
+USER root
+
+# 预装节点到 /data，并确保 package.json 存在
+RUN set -eux; \
+    mkdir -p /data; \
+    if [ ! -f /data/package.json ]; then echo '{}' > /data/package.json; fi; \
+    npm --prefix /data pkg set name='nodered-data' private=true; \
+    npm install --prefix /data --omit=dev --no-audit --no-fund \
+      node-red-contrib-easy-device \
+      node-red-contrib-lifesmart \
+      node-red-contrib-mqtt-tdengine \
+      node-red-contrib-modbus \
+      node-red-node-mysql \
+      node-red-contrib-postgresql \
+      node-red-contrib-cron-plus \
+      node-red-contrib-moment \
+      node-red-contrib-weather; \
+    chown -R node-red:node-red /data
+
+# 内置项目根的 settings.js 到镜像里，首次挂载命名卷时会自动复制到卷中
+COPY --chown=node-red:node-red settings.js /data/settings.js
+
+# 切回 node-red 用户
+USER node-red
+
+# 默认 CMD 继承自基础镜像，userDir 默认是 /data
