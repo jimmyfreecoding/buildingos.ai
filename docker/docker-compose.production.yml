@@ -136,6 +136,31 @@ services:
           memory: 256M
           cpus: '0.25'
 
+  # 8. Node-RED 流程编排（使用 SWR 镜像与项目根 settings.js）
+  nodered:
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/node-red:latest
+    container_name: buildingos-nodered-prod
+    ports:
+      - "1880:1880"
+    volumes:
+      - buildingos_prod_nodered_data:/data
+      - ../settings.js:/data/settings.js
+    networks:
+      - buildingos-prod-network
+    restart: unless-stopped
+    user: "0"
+    environment:
+      - NPM_CONFIG_UNSAFE_PERM=true
+      - NPM_CONFIG_LOGLEVEL=info
+      - NODE_PATH=/data/node_modules
+    entrypoint: ["/bin/sh","-lc","set -e; mkdir -p /data; if [ ! -f /data/package.json ]; then echo '{}' > /data/package.json; fi; npm --prefix /data pkg set name='nodered-data' private=true; npm install --prefix /data --omit=dev --no-audit --no-fund node-red-contrib-easy-device node-red-contrib-lifesmart node-red-contrib-mqtt-tdengine @jhe.zheng/node-red-make-iot-smart node-red-contrib-modbus node-red-node-mysql node-red-contrib-postgresql node-red-contrib-cron-plus node-red-contrib-moment node-red-contrib-weather; cd /usr/src/node-red; exec npm --no-update-notifier --no-fund start -- --userDir /data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1880/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   # 5. TDengine 时序数据库
   tdengine:
     image: swr.cn-east-3.myhuaweicloud.com/geeqee/tdengine:3.3.2.0
@@ -314,3 +339,5 @@ volumes:
     name: buildingos_prod_backend_uploads
   buildingos_prod_backend_backups:
     name: buildingos_prod_backend_backups
+  buildingos_prod_nodered_data:
+    name: buildingos_prod_nodered_data

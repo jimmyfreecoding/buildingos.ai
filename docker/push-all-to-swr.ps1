@@ -61,7 +61,8 @@ $imageList = @(
     "tdengine/tdengine:3.3.2.0,$SWR_REGISTRY/$Namespace/tdengine:3.3.2.0,TDengine Database",
     "emqx/emqx:5.8.0,$SWR_REGISTRY/$Namespace/emqx:5.8.0,EMQX MQTT Broker",
     "grafana/grafana:11.2.0,$SWR_REGISTRY/$Namespace/grafana:11.2.0,Grafana Dashboard",
-    "zlmediakit/zlmediakit:master,$SWR_REGISTRY/$Namespace/zlmediakit:master,ZLMediaKit Server"
+    "zlmediakit/zlmediakit:master,$SWR_REGISTRY/$Namespace/zlmediakit:master,ZLMediaKit Server",
+    "nodered/node-red:latest,$SWR_REGISTRY/$Namespace/node-red:$Version,Node-RED"
 )
 
 $successCount = 0
