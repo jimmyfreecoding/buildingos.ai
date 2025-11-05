@@ -4,9 +4,10 @@
 services:
   # 1. 前端服务 (React + Nginx)
   web:
+    image: docker-web:latest
     build:
-      context: ../../buildingos_web
-      dockerfile: ../buildingos.ai/docker/Dockerfile.web
+      context: ../
+      dockerfile: docker/Dockerfile.web
     container_name: buildingos-web
     ports:
       - "80:80"

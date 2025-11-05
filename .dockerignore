@@ -1,0 +1,15 @@
+# Keep the Docker build context minimal for web image
+
+# Ignore everything by default
+**
+
+# Allow only files needed for web build
+!docker/
+!nginx.conf
+
+# Inside docker/, ignore everything except the web Dockerfile and assets
+docker/**
+!docker/Dockerfile.web
+!docker/assets/
+docker/assets/**
+!docker/assets/*.zip
