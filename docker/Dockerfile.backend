@@ -19,7 +19,7 @@ COPY apps ./apps
 RUN npm run build
 
 # 安装生产依赖
-RUN npm ci --only=production --legacy-peer-deps && npm cache clean --force
+RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # 补充运行时所需的 peer 依赖，避免生产环境缺失
 # 注意：这不会修改 package.json，仅确保镜像内可用
