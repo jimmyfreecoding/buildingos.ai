@@ -1,2 +1,3 @@
 # Ignore generated web asset archives
 docker/assets/*.zip
+tmpdist/
