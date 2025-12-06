@@ -15,6 +15,10 @@ COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 COPY apps ./apps
 
+# 安装构建期缺失的依赖并修复重复导入
+RUN npm install --no-save unzipper --legacy-peer-deps && \
+    sed -i '22d;23d' src/server/service-manager/service-manager.controller.ts
+
 # 构建应用
 RUN npm run build
 
@@ -38,6 +42,13 @@ RUN adduser -S nestjs -u 1001
 # 设置工作目录
 WORKDIR /app
 
+ENV FRONTEND_MODE=prod_mount
+ENV FRONTEND_BASE_URL=http://frontend.example.com/
+ENV FRONTEND_WEBROOT=/var/lib/buildingos/frontend/main/current
+ENV FRONTEND_RELEASES=/var/lib/buildingos/frontend/main/releases
+ENV FRONTEND_CONTAINER_NAME=nginx-frontend
+ENV FRONTEND_WEBROOT_IN_CONTAINER=/usr/share/nginx/html
+
 # 从构建阶段复制文件
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
@@ -55,6 +66,9 @@ RUN mkdir -p /app/uploads /app/backups /app/logs /home/buildingos/uploadData \
     /app/data /app/data/tasks /app/data/uploads && \
     chown -R nestjs:nodejs /app/uploads /app/backups /app/logs /home/buildingos \
     /app/data /app/data/tasks /app/data/uploads
+
+RUN mkdir -p /var/lib/buildingos/frontend/main/current && \
+    mkdir -p /var/lib/buildingos/frontend/main/releases
 
 # 切换到非 root 用户
 USER nestjs
