@@ -10,26 +10,8 @@ RUN rm /etc/nginx/conf.d/default.conf
 # 复制自定义 nginx 配置（项目根）
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# 复制并解压主站构建产物到指定目录（使用本仓库内的资产目录）
-COPY docker/assets/buildingos_web.zip /tmp/buildingos_web.zip
-RUN mkdir -p /usr/share/nginx/html/os && \
-    cd /usr/share/nginx/html/os && \
-    unzip /tmp/buildingos_web.zip && \
-    rm /tmp/buildingos_web.zip
-
-# 复制并解压 MeetingPad 前端到 /usr/share/nginx/html/meetingpad
-COPY docker/assets/meetingpad.zip /tmp/meetingpad.zip
-RUN mkdir -p /usr/share/nginx/html/meetingpad && \
-    cd /usr/share/nginx/html/meetingpad && \
-    unzip /tmp/meetingpad.zip && \
-    rm /tmp/meetingpad.zip
-
-# 复制并解压 Mobile H5 前端到 /usr/share/nginx/html/h5
-COPY docker/assets/h5.zip /tmp/h5.zip
-RUN mkdir -p /usr/share/nginx/html/h5 && \
-    cd /usr/share/nginx/html/h5 && \
-    unzip /tmp/h5.zip && \
-    rm /tmp/h5.zip
+# 复制所有前端资产包到 /tmp，初始化任务将自动遍历解压到卷
+COPY docker/assets/*.zip /tmp/
 
 # 创建 SSL 证书目录
 RUN mkdir -p /etc/nginx/ssl

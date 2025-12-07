@@ -3,6 +3,29 @@
 
 services:
   # 1. 前端服务 (React + Nginx)
+  web-init:
+    image: docker-web:latest
+    container_name: buildingos-web-init
+    command: sh -lc "set -e; \
+      for z in \$\(find /tmp -maxdepth 1 -type f -name '*.zip'\); do \
+        name=\$\(basename \"\$${z}\" .zip\); \
+        dest=\"/mnt/frontend/webroot/\$${name}\"; \
+        mkdir -p \"\$dest\"; \
+        unzip -o \"\$${z}\" -d \"\$dest\"; \
+        if [ ! -f \"\$dest/index.html\" ]; then \
+          inner=\$\(find \"\$dest\" -maxdepth 2 -type f -name index.html -exec dirname {} \; | head -n 1\); \
+          if [ -n \"\$inner\" ] && [ \"\$inner\" != \"\$dest\" ]; then \
+            cp -a \"\$inner/\". \"\$dest/\"; \
+            rm -rf \"\$inner\"; \
+          fi; \
+        fi; \
+      done"
+    volumes:
+      - frontend_data:/mnt/frontend/webroot
+    networks:
+      - buildingos-network
+    restart: "no"
+  
   web:
     image: docker-web:latest
     build:
@@ -14,6 +37,10 @@ services:
       - "443:443"
     volumes:
       - ../docker/ssl-certs:/etc/nginx/ssl:ro
+      - frontend_data:/mnt/frontend/webroot:ro
+    depends_on:
+      web-init:
+        condition: service_completed_successfully
     networks:
       - buildingos-network
     restart: unless-stopped
@@ -89,6 +116,7 @@ services:
     volumes:
       - backend_uploads:/app/uploads
       - backend_backups:/app/backups
+      - frontend_data:/app/data/frontend
     ports:
       - "3001:3001"
     networks:
@@ -357,6 +385,8 @@ volumes:
   backend_uploads:
     driver: local
   backend_backups:
+    driver: local
+  frontend_data:
     driver: local
   postgres_data:
     driver: local

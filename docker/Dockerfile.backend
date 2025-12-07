@@ -7,8 +7,8 @@ WORKDIR /app
 # 仅复制包清单以建立依赖层缓存
 COPY package*.json ./
 
-# 安装所有依赖（包括 devDependencies）
-RUN npm ci --legacy-peer-deps && npm cache clean --force
+# 安装所有依赖（包括 devDependencies），允许锁文件在构建期更新以适配工作区
+RUN npm install --legacy-peer-deps && npm cache clean --force
 
 # 复制必要的构建文件与源码，避免传入庞大无关内容
 COPY tsconfig*.json nest-cli.json ./
@@ -22,8 +22,8 @@ RUN npm install --no-save unzipper --legacy-peer-deps && \
 # 构建应用
 RUN npm run build
 
-# 安装生产依赖
-RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
+# 仅保留生产依赖
+RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # 补充运行时所需的 peer 依赖，避免生产环境缺失
 # 注意：这不会修改 package.json，仅确保镜像内可用
@@ -44,8 +44,8 @@ WORKDIR /app
 
 ENV FRONTEND_MODE=prod_mount
 ENV FRONTEND_BASE_URL=http://frontend.example.com/
-ENV FRONTEND_WEBROOT=/var/lib/buildingos/frontend/main/current
-ENV FRONTEND_RELEASES=/var/lib/buildingos/frontend/main/releases
+ENV FRONTEND_WEBROOT=/app/data/frontend/webroot/main/current
+ENV FRONTEND_RELEASES=/app/data/frontend/releases
 ENV FRONTEND_CONTAINER_NAME=nginx-frontend
 ENV FRONTEND_WEBROOT_IN_CONTAINER=/usr/share/nginx/html
 
