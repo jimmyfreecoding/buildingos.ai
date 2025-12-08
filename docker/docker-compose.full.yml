@@ -7,6 +7,7 @@ services:
     image: docker-web:latest
     container_name: buildingos-web-init
     command: sh -lc "set -e; \
+      if [ -f /mnt/frontend/webroot/.initialized ]; then echo 'webroot already initialized, skip'; exit 0; fi; \
       for z in /tmp/*.zip; do \
         [ -f \"$$z\" ] || continue; \
         app=$$(basename \"$$z\" .zip); \
@@ -14,8 +15,11 @@ services:
         mkdir -p \"$$dest\"; \
         unzip -o \"$$z\" -d \"$$dest\"; \
       done; \
-      mkdir -p /mnt/frontend/webroot/releases; \
-      chown -R 1001:1001 /mnt/frontend/webroot"
+      mkdir -p /mnt/frontend/webroot/releases /mnt/frontend/webroot/uploads; \
+      chown -R 1001:1001 /mnt/frontend/webroot; \
+      touch /mnt/frontend/webroot/.initialized"
+    profiles:
+      - init
     volumes:
       - frontend_data:/mnt/frontend/webroot
     networks:
@@ -34,9 +38,6 @@ services:
     volumes:
       - ../docker/ssl-certs:/etc/nginx/ssl:ro
       - frontend_data:/mnt/frontend/webroot:ro
-    depends_on:
-      web-init:
-        condition: service_completed_successfully
     networks:
       - buildingos-network
     restart: unless-stopped
