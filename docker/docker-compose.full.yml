@@ -7,19 +7,15 @@ services:
     image: docker-web:latest
     container_name: buildingos-web-init
     command: sh -lc "set -e; \
-      for z in \$\(find /tmp -maxdepth 1 -type f -name '*.zip'\); do \
-        name=\$\(basename \"\$${z}\" .zip\); \
-        dest=\"/mnt/frontend/webroot/\$${name}\"; \
-        mkdir -p \"\$dest\"; \
-        unzip -o \"\$${z}\" -d \"\$dest\"; \
-        if [ ! -f \"\$dest/index.html\" ]; then \
-          inner=\$\(find \"\$dest\" -maxdepth 2 -type f -name index.html -exec dirname {} \; | head -n 1\); \
-          if [ -n \"\$inner\" ] && [ \"\$inner\" != \"\$dest\" ]; then \
-            cp -a \"\$inner/\". \"\$dest/\"; \
-            rm -rf \"\$inner\"; \
-          fi; \
-        fi; \
-      done"
+      for z in /tmp/*.zip; do \
+        [ -f \"$$z\" ] || continue; \
+        app=$$(basename \"$$z\" .zip); \
+        dest=\"/mnt/frontend/webroot/$$app\"; \
+        mkdir -p \"$$dest\"; \
+        unzip -o \"$$z\" -d \"$$dest\"; \
+      done; \
+      mkdir -p /mnt/frontend/webroot/releases; \
+      chown -R 1001:1001 /mnt/frontend/webroot"
     volumes:
       - frontend_data:/mnt/frontend/webroot
     networks:

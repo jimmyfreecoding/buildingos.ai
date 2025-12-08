@@ -44,11 +44,11 @@ WORKDIR /app
 
 ENV FRONTEND_MODE=prod_mount
 ENV FRONTEND_BASE_URL=http://frontend.example.com/
-ENV FRONTEND_WEBROOT=/app/data/frontend/webroot/main/current
+ENV FRONTEND_BASE_DIR=/app/data/frontend
 ENV FRONTEND_RELEASES=/app/data/frontend/releases
-ENV FRONTEND_CONTAINER_NAME=nginx-frontend
-ENV FRONTEND_WEBROOT_IN_CONTAINER=/usr/share/nginx/html
-
+ENV FRONTEND_RETENTION_ARCHIVES=10
+ENV FRONTEND_SSE_INTERVAL_MS=300
+ENV FRONTEND_SSE_FILE_INTERVAL=100
 # 从构建阶段复制文件
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
