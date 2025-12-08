@@ -20,11 +20,22 @@ BuildingOS AI 是一个基于微服务架构的智能建筑管理系统，包含
 - 可用磁盘空间: 至少 10GB
 
 ### 编译前后端
-
+docker compose -p buildingos -f docker/docker-compose.full.yml --profile init up -d web-init
 docker-compose -f docker-compose.full.yml build web 
 docker-compose -f docker-compose.full.yml up web 
 docker-compose -f docker-compose.full.yml build backend 
 docker-compose -f docker-compose.full.yml up backend 
+
+### 推送镜像到 SWR
+
+```bash
+.\docker\push-all-to-swr.ps1 -UseHardcodedLogin -Version latest -Region cn-east-3 -Namespace geeqee
+```
+
+### 部署生产环境
+- 首次初始化（仅第一次或重置）： docker compose -f docker/docker-compose.production.yml --profile init up -d web-init
+- 上线： docker compose -f docker/docker-compose.production.yml up -d web backend
+- 验证： http://localhost/os/ 与 http://localhost:3001/health 返回 200
 
 ### 启动所有服务
 

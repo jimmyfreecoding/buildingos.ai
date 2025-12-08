@@ -10,8 +10,11 @@ services:
       - "80:80"
     volumes:
       - web_logs_prod:/var/log/nginx
+      - buildingos_prod_frontend_data:/mnt/frontend/webroot:ro
     networks:
-      - buildingos-prod-network
+      buildingos-prod-network:
+        aliases:
+          - buildingos-web
     restart: unless-stopped
     deploy:
       resources:
@@ -55,8 +58,11 @@ services:
     volumes:
       - backend_logs_prod:/app/logs
       - backend_uploads_prod:/app/uploads
+      - buildingos_prod_frontend_data:/app/data/frontend
     networks:
-      - buildingos-prod-network
+      buildingos-prod-network:
+        aliases:
+          - buildingos-backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -311,6 +317,8 @@ volumes:
     name: backend_logs_prod
   backend_uploads_prod:
     name: backend_uploads_prod
+  buildingos_prod_frontend_data:
+    name: buildingos_prod_frontend_data
   buildingos_prod_postgres_data:
     name: buildingos_prod_postgres_data
   buildingos_prod_redis_data:
@@ -335,3 +343,20 @@ volumes:
     name: buildingos_prod_backend_backups
   buildingos_prod_nodered_data:
     name: buildingos_prod_nodered_data
+  # 0. Web 初始化服务（仅首次部署执行）
+  web-init:
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+    container_name: buildingos-web-init-prod
+    command: sh -lc "set -e; \
+      if [ -f /mnt/frontend/webroot/.initialized ]; then echo 'webroot already initialized, skip'; exit 0; fi; \
+      for z in /tmp/*.zip; do [ -f \"$z\" ] || continue; app=$(basename \"$z\" .zip); dest=\"/mnt/frontend/webroot/$app\"; mkdir -p \"$dest\"; unzip -o \"$z\" -d \"$dest\"; done; \
+      mkdir -p /mnt/frontend/webroot/releases /mnt/frontend/webroot/uploads; \
+      chown -R 1001:1001 /mnt/frontend/webroot; \
+      touch /mnt/frontend/webroot/.initialized"
+    volumes:
+      - buildingos_prod_frontend_data:/mnt/frontend/webroot
+    networks:
+      - buildingos-prod-network
+    restart: "no"
+    profiles:
+      - init

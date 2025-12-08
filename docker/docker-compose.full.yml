@@ -27,7 +27,7 @@ services:
     restart: "no"
   
   web:
-    image: docker-web:latest
+    image: buildingos-web:latest
     build:
       context: ../
       dockerfile: docker/Dockerfile.web
@@ -51,6 +51,7 @@ services:
 
   # 2. 后端服务 (NestJS)
   backend:
+    image: buildingos-backend:latest
     build:
       context: ../../buildingos
       dockerfile: ../buildingos.ai/docker/Dockerfile.backend

@@ -64,8 +64,8 @@ try {
 
 # Define images to push
 $imageList = @(
-    "docker-web:latest,$SWR_REGISTRY/$Namespace/buildingos-web:$Version,Frontend Service",
-    "docker-backend:latest,$SWR_REGISTRY/$Namespace/buildingos-backend:$Version,Backend Service", 
+    "buildingos-web:latest,$SWR_REGISTRY/$Namespace/buildingos-web:$Version,Frontend Service",
+    "buildingos-backend:latest,$SWR_REGISTRY/$Namespace/buildingos-backend:$Version,Backend Service", 
     "postgres:15,$SWR_REGISTRY/$Namespace/postgres:15,PostgreSQL Database",
     "redis:7-alpine,$SWR_REGISTRY/$Namespace/redis:7-alpine,Redis Cache",
     "tdengine/tdengine:3.3.2.0,$SWR_REGISTRY/$Namespace/tdengine:3.3.2.0,TDengine Database",
