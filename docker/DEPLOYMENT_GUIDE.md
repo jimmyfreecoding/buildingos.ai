@@ -168,6 +168,8 @@ docker compose -f ./docker/docker-compose.full.yml build --no-cache web backend
 # 下载配置文件（如果需要）
 wget https://raw.githubusercontent.com/your-repo/buildingos.ai/main/docker/docker-compose.production.yml
 
+# 一键启动所有服务 初始化将web应用解压到数据卷
+docker-compose -f docker-compose.production.yml up web-init
 # 一键启动所有服务
 docker-compose -f docker-compose.production.yml up -d
 ```
