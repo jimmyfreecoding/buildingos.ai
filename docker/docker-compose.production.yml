@@ -2,6 +2,29 @@
 # 使用华为云 SWR 镜像，独立的生产数据卷
 
 services:
+  web-init:
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+    container_name: buildingos-web-init-prod
+    command: sh -lc "set -e; \
+      if [ -f /mnt/frontend/webroot/.initialized ]; then echo 'webroot already initialized, skip'; exit 0; fi; \
+      for z in /tmp/*.zip; do \
+        [ -f \"$$z\" ] || continue; \
+        app=$$(basename \"$$z\" .zip); \
+        dest=\"/mnt/frontend/webroot/$$app\"; \
+        mkdir -p \"$$dest\"; \
+        unzip -o \"$$z\" -d \"$$dest\"; \
+      done; \
+      mkdir -p /mnt/frontend/webroot/releases /mnt/frontend/webroot/uploads; \
+      chown -R 1001:1001 /mnt/frontend/webroot; \
+      touch /mnt/frontend/webroot/.initialized"
+    profiles:
+      - init
+    volumes:
+      - buildingos_prod_frontend_data:/mnt/frontend/webroot
+    networks:
+      - buildingos-prod-network
+    restart: "no"
+
   # 1. 前端服务 (Vue.js + Nginx)
   web:
     image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
@@ -343,20 +366,3 @@ volumes:
     name: buildingos_prod_backend_backups
   buildingos_prod_nodered_data:
     name: buildingos_prod_nodered_data
-  # 0. Web 初始化服务（仅首次部署执行）
-  web-init:
-    image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
-    container_name: buildingos-web-init-prod
-    command: sh -lc "set -e; \
-      if [ -f /mnt/frontend/webroot/.initialized ]; then echo 'webroot already initialized, skip'; exit 0; fi; \
-      for z in /tmp/*.zip; do [ -f \"$z\" ] || continue; app=$(basename \"$z\" .zip); dest=\"/mnt/frontend/webroot/$app\"; mkdir -p \"$dest\"; unzip -o \"$z\" -d \"$dest\"; done; \
-      mkdir -p /mnt/frontend/webroot/releases /mnt/frontend/webroot/uploads; \
-      chown -R 1001:1001 /mnt/frontend/webroot; \
-      touch /mnt/frontend/webroot/.initialized"
-    volumes:
-      - buildingos_prod_frontend_data:/mnt/frontend/webroot
-    networks:
-      - buildingos-prod-network
-    restart: "no"
-    profiles:
-      - init
