@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: C:\k8s\kompose.exe -f docker/docker-compose.production.yml convert --namespace buildingos-prod --out k8s/
+    kompose.version: 1.37.0 (fb0539e64)
+  labels:
+    io.kompose.service: emqx
+  name: emqx
+  namespace: buildingos-prod
+spec:
+  ports:
+    - name: "1883"
+      port: 1883
+      targetPort: 1883
+    - name: "8083"
+      port: 8083
+      targetPort: 8083
+    - name: "8084"
+      port: 8084
+      targetPort: 8084
+    - name: "8883"
+      port: 8883
+      targetPort: 8883
+    - name: "18083"
+      port: 18083
+      targetPort: 18083
+  selector:
+    io.kompose.service: emqx

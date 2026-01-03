@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: C:\k8s\kompose.exe -f docker/docker-compose.production.yml convert --namespace buildingos-prod --out k8s/
+    kompose.version: 1.37.0 (fb0539e64)
+  labels:
+    io.kompose.service: backend
+  name: backend
+  namespace: buildingos-prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: backend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: C:\k8s\kompose.exe -f docker/docker-compose.production.yml convert --namespace buildingos-prod --out k8s/
+        kompose.version: 1.37.0 (fb0539e64)
+      labels:
+        io.kompose.service: backend
+    spec:
+      imagePullSecrets:
+        - name: swr-cred
+      containers:
+        - env:
+            - name: DATABASE_URL
+              value: postgresql://buildingos:buildingos_prod_2024@postgres:5432/buildingos
+            - name: DB_HOST
+              value: postgres
+            - name: DB_NAME
+              value: buildingos
+            - name: DB_PASSWORD
+              value: buildingos_prod_2024
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_TYPE
+              value: postgres
+            - name: DB_USER
+              value: buildingos
+            - name: LOG_LEVEL
+              value: info
+            - name: MAX_FILE_SIZE
+              value: 10MB
+            - name: MQTT_BROKER_URL
+              value: ws://emqx:8083/mqtt
+            - name: MQTT_PASSWORD
+              value: buildingos_emqx_2024
+            - name: MQTT_USERNAME
+              value: buildingos
+            - name: NODE_ENV
+              value: production
+            - name: REDIS_URL
+              value: redis://:redis_prod_2024@redis:6379
+            - name: TDENGINE_URL
+              value: tdengine:6030
+          image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest
+          livenessProbe:
+            exec:
+              command:
+                - node
+                - /app/healthcheck.js
+            failureThreshold: 3
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          name: buildingos-backend-prod
+          ports:
+            - containerPort: 3001
+              protocol: TCP
+          resources:
+            limits:
+              cpu: "1"
+              memory: "1073741824"
+            requests:
+              cpu: 500m
+              memory: "536870912"
+          volumeMounts:
+            - mountPath: /app/logs
+              name: backend-logs-prod
+            - mountPath: /app/uploads
+              name: backend-uploads-prod
+            - mountPath: /app/data/frontend
+              name: buildingos-prod-frontend-data
+      restartPolicy: Always
+      volumes:
+        - name: backend-logs-prod
+          persistentVolumeClaim:
+            claimName: backend-logs-prod
+        - name: backend-uploads-prod
+          persistentVolumeClaim:
+            claimName: backend-uploads-prod
+        - name: buildingos-prod-frontend-data
+          persistentVolumeClaim:
+            claimName: buildingos-prod-frontend-data
