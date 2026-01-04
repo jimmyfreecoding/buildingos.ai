@@ -2,7 +2,8 @@ param(
     [string]$Version = "latest",
     [string]$Region = "cn-east-3", 
     [string]$Namespace = "geeqee",
-    [switch]$UseHardcodedLogin = $false
+    [switch]$UseHardcodedLogin = $false,
+    [string[]]$Services
 )
 
 function Write-ColorOutput {
@@ -75,6 +76,38 @@ $imageList = @(
     "docker-nodered:latest,$SWR_REGISTRY/$Namespace/node-red:prebuilt,Node-RED Prebuilt"
 )
 
+$serviceMap = @{
+    "web" = "Frontend Service";
+    "backend" = "Backend Service";
+    "postgres" = "PostgreSQL Database";
+    "redis" = "Redis Cache";
+    "tdengine" = "TDengine Database";
+    "emqx" = "EMQX MQTT Broker";
+    "grafana" = "Grafana Dashboard";
+    "zlmediakit" = "ZLMediaKit Server";
+    "nodered" = "Node-RED Prebuilt";
+}
+
+if ($Services -and $Services.Count -gt 0) {
+    $tokens = @()
+    foreach ($s in $Services) {
+        $tokens += ($s -split '[,; ]+')
+    }
+    $tokens = $tokens | Where-Object { $_ -ne "" } | ForEach-Object { $_.ToLower() }
+    $targetNames = @()
+    foreach ($t in $tokens) {
+        if ($serviceMap.ContainsKey($t)) { $targetNames += $serviceMap[$t] }
+    }
+    if ($targetNames.Count -gt 0) {
+        $imageList = $imageList | Where-Object {
+            ($_.Split(','))[2] -in $targetNames
+        }
+        Write-ColorOutput "[INFO] Selected services: $($tokens -join ', ')" "Blue"
+    } else {
+        Write-ColorOutput "[WARNING] No valid services matched, pushing full list" "Yellow"
+    }
+}
+
 $successCount = 0
 $totalCount = $imageList.Count
 
@@ -139,5 +172,6 @@ if ($successCount -eq $totalCount) {
 Write-ColorOutput "`n=== Usage Examples ===" "Blue"
 Write-ColorOutput "1. Basic usage: .\push-all-to-swr.ps1 -UseHardcodedLogin" "Yellow"
 Write-ColorOutput "2. With version: .\push-all-to-swr.ps1 -UseHardcodedLogin -Version 'v1.0.0'" "Yellow"
-Write-ColorOutput "3. Different region: .\push-all-to-swr.ps1 -UseHardcodedLogin -Region 'cn-north-4'" "Yellow"
+Write-ColorOutput "3. Different region: .\push-all-to-swr.ps1 -UseHardcodedLogin -Region 'cn-east-3'" "Yellow"
 Write-ColorOutput "4. Custom namespace: .\push-all-to-swr.ps1 -UseHardcodedLogin -Namespace 'myproject'" "Yellow"
+Write-ColorOutput "5. Custom services: .\push-all-to-swr.ps1 -UseHardcodedLogin -Services web,backend " "Yellow"

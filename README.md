@@ -19,25 +19,72 @@ BuildingOS AI 是一个基于微服务架构的智能建筑管理系统，包含
 - 可用内存: 至少 4GB
 - 可用磁盘空间: 至少 10GB
 
+### 编译前 Web 资产准备
+- 目的：让前端镜像在首次部署时自带默认资产包，便于初次安装即可访问
+- 步骤：
+  - 为每个前端应用执行构建，产出 dist（示例：os、h5、meetingpad）
+    - os：在对应项目根执行构建命令（如 `npm run build:zip`），生成 dist
+    - h5：执行构建如 `npm run build:zip`），生成 dist
+    - meetingpad：执行构建如 `npm run build:zip`），生成 dist
+  - 将各应用的 dist 中的 zip 文件，手动拷贝到一下路径：
+    - `docker/assets/os.zip`
+    - `docker/assets/h5.zip`
+    - `docker/assets/meetingpad.zip`
+  - zip 内部目录结构要求：解压后直接作为应用根目录（需包含 `index.html`、`static/` 等），最终将被解压到
+    - `/mnt/frontend/webroot/<app>/...`（例如 `/mnt/frontend/webroot/os/`）
+- 首次初始化（仅第一次或重置时）：
+  - 运行初始化服务将镜像内 `/tmp/*.zip` 解压到前端卷 `buildingos_frontend_data` 的 `/mnt/frontend/webroot/<app>/`
+  - 初始化同时创建 `releases/`、`uploads/` 并设置属主为 `1001:1001`
+  - 写入哨兵文件 `/mnt/frontend/webroot/.initialized`，防止后续重复初始化导致版本回滚
+- 说明：
+  - 初始化通过 `web-init`（profiles: init）显式触发，仅在首次部署使用
+  - 正常上线或重启 `web` 不会触发初始化，后续前端版本通过后端发布流程上传到卷并切换
+
 ### 编译前后端
 docker compose -p buildingos -f docker/docker-compose.full.yml --profile init up -d web-init
-docker-compose -f docker-compose.full.yml build web 
-docker-compose -f docker-compose.full.yml up web 
-docker-compose -f docker-compose.full.yml build backend 
-docker-compose -f docker-compose.full.yml up backend 
-
+# 关闭 BuildKit 并用 Compose 重建前后端
+SWR 兼容性注意事项（manifest.json 解析错误）
+华为云 SWR 对 OCI manifest 的兼容性有限，如果使用 Docker BuildKit 或 Buildx 构建的镜像，推送时可能出现如manifest.json 解析错误需要首先执行
+```bash
+$env:DOCKER_BUILDKIT = "0"
+```
+然后执行
+```bash
+docker compose -f .\docker-compose.full.yml build web backend
+```
 ### 推送镜像到 SWR
 
 ```bash
-.\docker\push-all-to-swr.ps1 -UseHardcodedLogin -Version latest -Region cn-east-3 -Namespace geeqee
+.\docker\push-all-to-swr.ps1 -UseHardcodedLogin -Services web,backend 
 ```
+=== Usage Examples ===
+1. Basic usage: .\push-all-to-swr.ps1 -UseHardcodedLogin
+2. With version: .\push-all-to-swr.ps1 -UseHardcodedLogin -Version 'v1.0.0'
+3. Different region: .\push-all-to-swr.ps1 -UseHardcodedLogin -Region 'cn-east-3'
+4. Custom namespace: .\push-all-to-swr.ps1 -UseHardcodedLogin -Namespace 'geeqee'
+5. Custom services: .\push-all-to-swr.ps1 -UseHardcodedLogin -Services web,backend 
 
-### 部署生产环境
-- 首次初始化（仅第一次或重置）： docker compose -f docker/docker-compose.production.yml --profile init up -d web-init
-- 上线： docker compose -f docker/docker-compose.production.yml up -d web backend
+
+### 一键部署生产环境命令
+
+```bash
+# 下载配置文件（如果需要）
+wget https://raw.githubusercontent.com/your-repo/buildingos.ai/main/docker/docker-compose.production.yml
+
+# 一键启动所有服务 初始化将web应用解压到数据卷(首次初始化（仅第一次或重置）：)
+docker-compose -f docker-compose.production.yml up web-init
+# 一键启动所有服务
+docker-compose -f docker-compose.production.yml up -d
+```
+### 验证生产环境
 - 验证： http://localhost/os/ 与 http://localhost:3001/health 返回 200
 
-### 启动所有服务
+
+
+
+
+
+### 启动所有服务（本地开发部署）
 
 ```bash
 # 启动所有微服务

@@ -66,6 +66,24 @@ services:
       - DB_PASSWORD=buildingos
       - DB_NAME=buildingos
 
+      # AI setting
+      - AI_PROVIDER=deepseek
+      - AI_MODEL=deepseek-chat
+      - AI_EMBEDDING_MODEL=text-embedding-3-small
+      - AI_ENABLE_LOCAL=false
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - OPENAI_BASE_URL=https://api.deepseek.com/v1
+
+
+      # LangSmith tracing
+      - LANGCHAIN_TRACING_V2=true
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=pr-standard-codling-11
+      # Optional custom endpoint, default is https://api.smith.langchain.com
+      # LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+      # Optional tags for runs (comma separated)
+      - LANGCHAIN_TAGS=ai-service,stream
+
 
       # - DATABASE_HOST=buildingos-postgres
       # - DATABASE_PORT=5432
