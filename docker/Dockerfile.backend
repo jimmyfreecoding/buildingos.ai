@@ -13,7 +13,7 @@ RUN npm install --legacy-peer-deps && npm cache clean --force
 # 复制必要的构建文件与源码，避免传入庞大无关内容
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
-COPY apps ./apps
+# COPY apps ./apps
 
 # 安装构建期缺失的依赖并修复重复导入
 RUN npm install --no-save unzipper --legacy-peer-deps && \
@@ -53,13 +53,13 @@ ENV FRONTEND_SSE_FILE_INTERVAL=100
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
-COPY --from=builder --chown=nestjs:nodejs /app/apps ./apps
+# COPY --from=builder --chown=nestjs:nodejs /app/apps ./apps
 
 # 复制 area-list.json 数据文件
-COPY --from=builder --chown=nestjs:nodejs /app/src/server/area/data/area-list.json ./dist/src/server/area/data/area-list.json
+COPY --from=builder --chown=nestjs:nodejs /app/src/server/area/data/area-list.json ./dist/area/data/area-list.json
 
 # 复制 backindexzip.json 数据文件
-COPY --from=builder --chown=nestjs:nodejs /app/src/server/router/backindexzip.json ./dist/src/server/router/backindexzip.json
+COPY --from=builder --chown=nestjs:nodejs /app/src/server/router/backindexzip.json ./dist/router/backindexzip.json
 
 # 创建必要的目录
 RUN mkdir -p /app/uploads /app/backups /app/logs /home/buildingos/uploadData \
@@ -81,4 +81,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:3001/health || exit 1
 
 # 启动应用
-CMD ["node", "dist/src/server/main.js"]
+CMD ["node", "dist/main.js"]

@@ -80,8 +80,20 @@ docker-compose -f docker-compose.production.yml up -d
 - 验证： http://localhost/os/ 与 http://localhost:3001/health 返回 200
 
 
+### 卸载和删除所有服务（生产环境）
 
+```bash
+# 停止并删除所有服务
+docker-compose -f docker-compose.production.yml down -v --remove-orphans
 
+# 删除所有镜像（谨慎使用）
+docker rmi $(docker images -q)
+```
+### 一键指令（方便一键更新后端环境，编译，推送，部署，启动） ###
+
+```powershell
+$ErrorActionPreference = "Stop"; cd c:\githubproject\buildingos_build\buildingos.ai; $env:DOCKER_BUILDKIT = "0"; docker compose -p buildingos -f "docker/docker-compose.full.yml" build backend; docker tag buildingos-backend:latest swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest; docker push swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest; docker compose -f "docker/docker-compose.production.yml" pull backend; docker compose -f "docker/docker-compose.production.yml" up -d backend; docker logs buildingos-backend-prod --tail 120; docker run --rm swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest sh -lc "ls -la /app/dist/area/data && ls -la /app/dist/router | head -n 20"
+```
 
 
 ### 启动所有服务（本地开发部署）
