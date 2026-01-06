@@ -61,11 +61,13 @@ COPY --from=builder --chown=nestjs:nodejs /app/src/server/area/data/area-list.js
 # 复制 backindexzip.json 数据文件
 COPY --from=builder --chown=nestjs:nodejs /app/src/server/router/backindexzip.json ./dist/router/backindexzip.json
 
+
 # 创建必要的目录
 RUN mkdir -p /app/uploads /app/backups /app/logs /home/buildingos/uploadData \
     /app/data /app/data/tasks /app/data/uploads && \
     chown -R nestjs:nodejs /app/uploads /app/backups /app/logs /home/buildingos \
     /app/data /app/data/tasks /app/data/uploads
+COPY --from=builder --chown=nestjs:nodejs /app/src/server/space/demo.acmap /app/data/demo.acmap
 
 RUN mkdir -p /var/lib/buildingos/frontend/main/current && \
     mkdir -p /var/lib/buildingos/frontend/main/releases
