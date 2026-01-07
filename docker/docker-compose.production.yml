@@ -78,7 +78,11 @@ services:
       - MQTT_PASSWORD=buildingos_emqx_2024
       - LOG_LEVEL=info
       - MAX_FILE_SIZE=10MB
-
+      # ZMedia 配置
+      - ZLM_HOST=buildingos-zlmediakit-prod
+      - ZLM_PORT=8080
+      - ZLM_SECRET=buildingos
+      
       # AI setting
       - AI_PROVIDER=deepseek
       - AI_MODEL=deepseek-chat

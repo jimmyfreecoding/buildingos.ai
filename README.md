@@ -91,6 +91,13 @@ docker rmi $(docker images -q)
 ```
 ### 一键指令（方便一键更新后端环境，编译，推送，部署，启动） ###
 
+
+#### 一键指令（前端 Web）
+
+```powershell
+$ErrorActionPreference = "Stop"; cd c:\githubproject\buildingos_build\buildingos.ai; $env:DOCKER_BUILDKIT = "0"; docker compose -p buildingos -f "docker/docker-compose.full.yml" build web; docker tag buildingos-web:latest swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest; docker push swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest; docker compose -f "docker/docker-compose.production.yml" pull web; docker compose -f "docker/docker-compose.production.yml" up -d web; docker logs buildingos-web-prod --tail 120; docker run --rm swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest sh -lc "ls -la /etc/nginx/nginx.conf && ls -la /tmp | head -n 20"
+```
+
 ```powershell
 $ErrorActionPreference = "Stop"; cd c:\githubproject\buildingos_build\buildingos.ai; $env:DOCKER_BUILDKIT = "0"; docker compose -p buildingos -f "docker/docker-compose.full.yml" build backend; docker tag buildingos-backend:latest swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest; docker push swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest; docker compose -f "docker/docker-compose.production.yml" pull backend; docker compose -f "docker/docker-compose.production.yml" up -d backend; docker logs buildingos-backend-prod --tail 120; docker run --rm swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest sh -lc "ls -la /app/dist/area/data && ls -la /app/dist/router | head -n 20"
 ```
