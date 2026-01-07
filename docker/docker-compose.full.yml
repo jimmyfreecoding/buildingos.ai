@@ -69,6 +69,9 @@ services:
       - ZLM_HOST=buildingos-zlmediakit
       - ZLM_PORT=8080
       - ZLM_SECRET=buildingos
+      # 新增配置供后端API使用（容器间通信）
+      - ZLM_API_HOST=buildingos-zlmediakit-prod # 通常与ZLM_HOST相同，或是Docker服务名
+      - ZLM_API_PORT=80  
       # AI setting
       - AI_PROVIDER=deepseek
       - AI_MODEL=deepseek-chat
