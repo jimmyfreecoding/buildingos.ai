@@ -170,15 +170,31 @@ services:
 
   # 3. PostgreSQL 数据库服务
   postgres:
-    image: postgres:15
+    # 1. 更换为 TimescaleDB 官方镜像（保持 PG 15 大版本一致以兼容旧数据卷）
+    image: timescale/timescaledb-ha:pg16  
     container_name: buildingos-postgres
+    # 2. 注入针对 10w/s 写入的关键性能参数
+    # -c shared_preload_libraries=timescaledb 启动插件
+    # -c synchronous_commit=off 异步提交，极致提升吞吐（牺牲极小概率的掉电丢失）
+    # -c max_wal_size=4GB 减少高频写入下的 Checkpoint 频率
+    command: >
+      postgres 
+      -c shared_preload_libraries=timescaledb,vector,pg_stat_statements,pg_cron
+      -c cron.database_name=buildingos
+      -c synchronous_commit=off
+      -c max_wal_size=2GB 
+      -c checkpoint_timeout=10min
     environment:
       - POSTGRES_DB=buildingos
       - POSTGRES_USER=buildingos
       - POSTGRES_PASSWORD=buildingos
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+      # TimescaleDB 自动调优：告知工具可用内存，启动时自动计算 shared_buffers 等
+      - TS_TUNE_MEMORY=2GB   # 1w/s 建议内存设为 2G 以上，10w/s 建议设为 4G 以上
+      - TS_TUNE_NUM_CPUS=2   # 1w/s 建议设为 2 核以上，10w/s 建议设为 4 核以上
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-timescaledb.sql:/docker-entrypoint-initdb.d/init-timescaledb.sql:ro
     ports:
       - "5432:5432"
     networks:
@@ -193,11 +209,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+        # 3. 资源提升：10w/s 写入在 1G 下基本无法稳定运行，建议至少 4G+ ,1w/s 建议内存设为 2G 以上
+          memory: 2G
           cpus: '0.5'
         reservations:
-          memory: 512M
-          cpus: '0.25'
+          memory: 1G
+          cpus: '1'
 
   # 4. Redis 缓存服务
   redis:

@@ -70,7 +70,9 @@ docker compose -f .\docker-compose.full.yml build web backend
 ```bash
 # 下载配置文件（如果需要）
 wget https://raw.githubusercontent.com/your-repo/buildingos.ai/main/docker/docker-compose.production.yml
+# 登录
 
+docker login swr.cn-east-3.myhuaweicloud.com -u cn-east-3@HPUA47E21TXTL1E4MHAJ -p 615e168df23e9bf7f95b5414b6e0c88b0cfaa9438f53fda6f64a691d4982a5ab
 # 一键启动所有服务 初始化将web应用解压到数据卷(首次初始化（仅第一次或重置）：)
 docker-compose -f docker-compose.production.yml up web-init
 # 一键启动所有服务
@@ -83,8 +85,9 @@ docker-compose -f docker-compose.production.yml up -d
 ### 卸载和删除所有服务（生产环境）
 
 ```bash
-# 停止并删除所有服务
+# 停止并删除所有服务或单独服务
 docker-compose -f docker-compose.production.yml down -v --remove-orphans
+docker-compose -f docker-compose.production.yml down postgres -v --remove-orphans
 
 # 删除所有镜像（谨慎使用）
 docker rmi $(docker images -q)
@@ -102,48 +105,6 @@ $ErrorActionPreference = "Stop"; cd c:\githubproject\buildingos_build\buildingos
 $ErrorActionPreference = "Stop"; cd c:\githubproject\buildingos_build\buildingos.ai; $env:DOCKER_BUILDKIT = "0"; docker compose -p buildingos -f "docker/docker-compose.full.yml" build backend; docker tag buildingos-backend:latest swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest; docker push swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest; docker compose -f "docker/docker-compose.production.yml" pull backend; docker compose -f "docker/docker-compose.production.yml" up -d backend; docker logs buildingos-backend-prod --tail 120; docker run --rm swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest sh -lc "ls -la /app/dist/area/data && ls -la /app/dist/router | head -n 20"
 ```
 
-
-### 启动所有服务（本地开发部署）
-
-```bash
-# 启动所有微服务
-docker-compose -f docker/docker-compose.microservices.yml up -d
-
-# 查看服务状态
-docker-compose -f docker/docker-compose.microservices.yml ps
-
-# 查看服务日志
-docker-compose -f docker/docker-compose.microservices.yml logs -f
-```
-
-### 启动单个服务
-
-```bash
-# 启动PostgreSQL
-docker-compose -f docker/docker-compose.microservices.yml up -d postgres
-
-# 启动TDengine
-docker-compose -f docker/docker-compose.microservices.yml up -d tdengine
-
-# 启动Grafana
-docker-compose -f docker/docker-compose.microservices.yml up -d grafana
-
-# 启动EMQX
-docker-compose -f docker/docker-compose.microservices.yml up -d emqx
-
-# 启动Redis
-docker-compose -f docker/docker-compose.microservices.yml up -d redis
-```
-
-### 停止服务
-
-```bash
-# 停止所有服务
-docker-compose -f docker/docker-compose.microservices.yml down
-
-# 停止并删除数据卷（谨慎使用）
-docker-compose -f docker/docker-compose.microservices.yml down -v
-```
 
 ## 🌐 Web管理界面
 
