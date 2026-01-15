@@ -2,3 +2,7 @@
 docker/assets/*.zip
 tmpdist/
 .env
+
+# Database backup and utility scripts
+docker/truncate_all.sql
+docker/buildingos.sql

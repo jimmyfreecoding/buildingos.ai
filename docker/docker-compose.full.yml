@@ -184,6 +184,7 @@ services:
       -c synchronous_commit=off
       -c max_wal_size=2GB 
       -c checkpoint_timeout=10min
+      -c max_connections=3000
     environment:
       - POSTGRES_DB=buildingos
       - POSTGRES_USER=buildingos
@@ -366,8 +367,11 @@ services:
     container_name: buildingos-nodered
     ports:
       - "1880:1880"
+    environment:
+      - FLOWS=flows.json
     volumes:
       - nodered_data:/data
+      - ./flows.json:/data/flows.json
     networks:
       - buildingos-network
     restart: unless-stopped

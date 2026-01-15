@@ -149,6 +149,7 @@ services:
       -c synchronous_commit=on 
       -c max_wal_size=2GB 
       -c checkpoint_timeout=10min
+      -c max_connections=3000
     environment:
       - POSTGRES_DB=buildingos
       - POSTGRES_USER=buildingos
@@ -210,10 +211,13 @@ services:
   nodered:
     image: swr.cn-east-3.myhuaweicloud.com/geeqee/node-red:prebuilt
     container_name: buildingos-nodered-prod
+    environment:
+      - FLOWS=flows.json
     ports:
       - "1880:1880"
     volumes:
       - buildingos_prod_nodered_data:/data
+      - ./flows.json:/data/flows.json
     networks:
       - buildingos-prod-network
     restart: unless-stopped
