@@ -213,6 +213,7 @@ services:
     container_name: buildingos-nodered-prod
     environment:
       - FLOWS=flows.json
+      - TZ=Asia/Shanghai
     ports:
       - "1880:1880"
     volumes:

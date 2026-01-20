@@ -369,6 +369,7 @@ services:
       - "1880:1880"
     environment:
       - FLOWS=flows.json
+      - TZ=Asia/Shanghai
     volumes:
       - nodered_data:/data
       - ./flows.json:/data/flows.json
