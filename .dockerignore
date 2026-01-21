@@ -6,6 +6,7 @@
 # Allow only files needed for web build
 !docker/
 !nginx.conf
+!settings.js
 
 # Inside docker/, ignore everything except the web Dockerfile and assets
 docker/**
