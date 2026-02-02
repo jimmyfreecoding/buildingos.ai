@@ -4,11 +4,30 @@ metadata:
   name: buildingos-ingress
   namespace: buildingos-demo
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    kubernetes.io/tls-acme: "true"
 spec:
+  tls:
+  - hosts:
+    - demo.buildingos.ai
+    secretName: buildingos-tls-cert
   rules:
-  - http:
+  - host: demo.buildingos.ai
+    http:
       paths:
+      - path: /os
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /pad
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
       - path: /api
         pathType: Prefix
         backend:
@@ -23,10 +42,3 @@ spec:
             name: frontend
             port:
               number: 80
-      - path: /emqx
-        pathType: Prefix
-        backend:
-          service:
-            name: emqx
-            port:
-              number: 18083

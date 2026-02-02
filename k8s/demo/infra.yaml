@@ -216,6 +216,7 @@ metadata:
   name: emqx
   namespace: buildingos-demo
 spec:
+  type: LoadBalancer
   selector:
     app: emqx
   ports:

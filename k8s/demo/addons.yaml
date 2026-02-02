@@ -116,7 +116,9 @@ metadata:
   name: nodered
   namespace: buildingos-demo
 spec:
+  type: LoadBalancer
   selector:
     app: nodered
   ports:
   - port: 1880
+    targetPort: 1880
