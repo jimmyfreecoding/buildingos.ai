@@ -1,0 +1,122 @@
+# 4. TDengine (Single Node Demo)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tdengine
+  namespace: buildingos-demo
+spec:
+  serviceName: "tdengine"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tdengine
+  template:
+    metadata:
+      labels:
+        app: tdengine
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: tdengine
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/tdengine:3.3.2.0
+        env:
+        - name: TAOS_FQDN
+          value: "tdengine"
+        - name: TAOS_FIRST_EP
+          value: "tdengine"
+        - name: TAOS_SERVER_PORT
+          value: "6030"
+        - name: TAOS_HTTP_PORT
+          value: "6041"
+        ports:
+        - containerPort: 6030
+        - containerPort: 6041
+        livenessProbe:
+          exec:
+            command: ["taos", "-s", "show databases;"]
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        volumeMounts:
+        - name: taosdata
+          mountPath: /var/lib/taos
+  volumeClaimTemplates:
+  - metadata:
+      name: taosdata
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tdengine
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: tdengine
+  ports:
+  - name: tcp
+    port: 6030
+  - name: rest
+    port: 6041
+---
+# 5. Node-RED
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodered
+  namespace: buildingos-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodered
+  template:
+    metadata:
+      labels:
+        app: nodered
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: nodered
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/node-red:prebuilt
+        env:
+        - name: FLOWS
+          value: "flows.json"
+        - name: TZ
+          value: "Asia/Shanghai"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 1880
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodered
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: nodered
+  ports:
+  - port: 1880

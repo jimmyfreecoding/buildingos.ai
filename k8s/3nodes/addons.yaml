@@ -1,0 +1,208 @@
+# 4. TDengine HA (Cluster Mode)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tdengine
+  namespace: buildingos-prod
+spec:
+  serviceName: "tdengine"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tdengine
+  template:
+    metadata:
+      labels:
+        app: tdengine
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - tdengine
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: tdengine
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/tdengine:3.3.2.0
+        env:
+        - name: TAOS_FQDN
+          value: "$(POD_NAME).tdengine.buildingos-prod.svc.cluster.local"
+        - name: TAOS_FIRST_EP
+          value: "tdengine-0.tdengine.buildingos-prod.svc.cluster.local"
+        - name: TAOS_SERVER_PORT
+          value: "6030"
+        - name: TAOS_HTTP_PORT
+          value: "6041"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - containerPort: 6030
+        - containerPort: 6041
+        resources:
+          requests:
+            cpu: 4
+            memory: 8Gi
+          limits:
+            cpu: 8
+            memory: 16Gi
+        volumeMounts:
+        - name: taosdata
+          mountPath: /var/lib/taos
+  volumeClaimTemplates:
+  - metadata:
+      name: taosdata
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 500Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tdengine
+  namespace: buildingos-prod
+spec:
+  clusterIP: None
+  selector:
+    app: tdengine
+  ports:
+  - name: tcp
+    port: 6030
+  - name: rest
+    port: 6041
+---
+# 5. Node-RED HA (Active-Passive)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodered
+  namespace: buildingos-prod
+spec:
+  replicas: 1  # 保证流程逻辑唯一性
+  selector:
+    matchLabels:
+      app: nodered
+  template:
+    metadata:
+      labels:
+        app: nodered
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: nodered
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/node-red:prebuilt
+        env:
+        - name: FLOWS
+          value: "flows.json"
+        - name: TZ
+          value: "Asia/Shanghai"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 2Gi
+        volumeMounts:
+        - name: nodered-data
+          mountPath: /data
+      volumes:
+      - name: nodered-data
+        persistentVolumeClaim:
+          claimName: nodered-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodered
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: nodered
+  ports:
+  - port: 1880
+---
+# 6. ZLMediaKit HA (Cluster)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zlmediakit
+  namespace: buildingos-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: zlmediakit
+  template:
+    metadata:
+      labels:
+        app: zlmediakit
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - zlmediakit
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: zlmediakit
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/zlmediakit:master
+        env:
+        - name: ZLM_GENERAL_enableVhost
+          value: "1"
+        - name: ZLM_GENERAL_flowThreshold
+          value: "1024"
+        - name: ZLM_HTTP_port
+          value: "80"
+        - name: ZLM_API_secret
+          value: "buildingos"
+        ports:
+        - containerPort: 80
+        - containerPort: 1935
+        - containerPort: 554
+        resources:
+          requests:
+            cpu: 4
+            memory: 4Gi
+          limits:
+            cpu: 8
+            memory: 8Gi
+        volumeMounts:
+        - name: zlm-data
+          mountPath: /var/zlmediakit/record
+  volumes:
+  - name: zlm-data
+    persistentVolumeClaim:
+      claimName: zlmediakit-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zlmediakit
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: zlmediakit
+  ports:
+  - name: http
+    port: 80
+  - name: rtmp
+    port: 1935
+  - name: rtsp
+    port: 554

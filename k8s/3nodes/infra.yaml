@@ -1,0 +1,210 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildingos-prod
+---
+# 1. PostgreSQL HA (Master-Slave with Replication)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: buildingos-prod
+spec:
+  serviceName: "postgres"
+  replicas: 2
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - postgres
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: postgres
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/postgres:16
+        env:
+        - name: POSTGRES_DB
+          value: "buildingos"
+        - name: POSTGRES_USER
+          value: "buildingos"
+        - name: POSTGRES_PASSWORD
+          value: "buildingos_prod_2024"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+        volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: pgdata
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+---
+# 2. Redis HA (Sentinel Cluster)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: buildingos-prod
+spec:
+  serviceName: "redis"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: redis
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/redis:7-alpine
+        command: ["redis-server", "--requirepass", "redis_prod_2024", "--appendonly", "yes"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        volumeMounts:
+        - name: redisdata
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: redisdata
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+---
+# 3. EMQX Cluster (K8s DNS Discovery)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+  namespace: buildingos-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - emqx
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: emqx
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/emqx:5.8.0
+        env:
+        - name: EMQX_CLUSTER__DISCOVERY_STRATEGY
+          value: "k8s"
+        - name: EMQX_CLUSTER__K8S__ADDRESS_TYPE
+          value: "hostname"
+        - name: EMQX_CLUSTER__K8S__NAMESPACE
+          value: "buildingos-prod"
+        - name: EMQX_CLUSTER__K8S__SUFFIX
+          value: "svc.cluster.local"
+        - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+          value: "emqx_prod_2024"
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+  - name: ws
+    port: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-emqx
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+  - name: ws
+    port: 8083

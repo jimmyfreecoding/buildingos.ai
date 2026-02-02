@@ -1,0 +1,63 @@
+# 6. ZLMediaKit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zlmediakit
+  namespace: buildingos-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zlmediakit
+  template:
+    metadata:
+      labels:
+        app: zlmediakit
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: zlmediakit
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/zlmediakit:master
+        env:
+        - name: ZLM_GENERAL_enableVhost
+          value: "1"
+        - name: ZLM_GENERAL_flowThreshold
+          value: "1024"
+        - name: ZLM_HTTP_port
+          value: "80"
+        - name: ZLM_API_secret
+          value: "buildingos"
+        ports:
+        - containerPort: 80
+        - containerPort: 1935
+        - containerPort: 554
+        livenessProbe:
+          httpGet:
+            path: /index/api/getServerConfig
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zlmediakit
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: zlmediakit
+  ports:
+  - name: http
+    port: 80
+  - name: rtmp
+    port: 1935
+  - name: rtsp
+    port: 554

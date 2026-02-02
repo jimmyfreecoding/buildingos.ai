@@ -1,0 +1,244 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildingos-demo
+---
+# 0. Frontend Init Job (解压前端静态文件)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: frontend-init
+  namespace: buildingos-demo
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: web-init
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+        command: ["sh", "-lc"]
+        args:
+          - |
+            set -e;
+            if [ -f /mnt/frontend/webroot/.initialized ]; then 
+              echo 'webroot already initialized, skip'; 
+              exit 0; 
+            fi;
+            for z in /tmp/*.zip; do
+              [ -f "$z" ] || continue;
+              app=$(basename "$z" .zip);
+              dest="/mnt/frontend/webroot/$app";
+              mkdir -p "$dest";
+              unzip -o "$z" -d "$dest";
+            done;
+            mkdir -p /mnt/frontend/webroot/releases /mnt/frontend/webroot/uploads;
+            chown -R 1001:1001 /mnt/frontend/webroot;
+            touch /mnt/frontend/webroot/.initialized;
+        volumeMounts:
+        - name: frontend-data
+          mountPath: /mnt/frontend/webroot
+      restartPolicy: OnFailure
+      volumes:
+      - name: frontend-data
+        persistentVolumeClaim:
+          claimName: frontend-pvc
+---
+# PVC for Frontend Data
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend-init-sa
+  namespace: buildingos-demo
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: frontend-pvc
+  namespace: buildingos-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# 1. PostgreSQL (TimescaleDB)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: buildingos-demo
+spec:
+  serviceName: "postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: postgres
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/postgres:16
+        # 移除 command 覆盖，让其使用镜像默认的 docker-entrypoint.sh
+        # 通过环境变量注入针对 10w/s 写入的关键性能参数
+        env:
+        - name: POSTGRES_DB
+          value: "buildingos"
+        - name: POSTGRES_USER
+          value: "buildingos"
+        - name: POSTGRES_PASSWORD
+          value: "buildingos_prod_2024"
+        - name: POSTGRES_INITDB_ARGS
+          value: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+        # 使用环境变量来配置，避免直接修改 postgresql.conf 导致的路径问题
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: pgdata
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+---
+# 2. Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: buildingos-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: redis
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/redis:7-alpine
+        command: ["redis-server", "--requirepass", "redis_prod_2024", "--appendonly", "yes"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+---
+# 3. EMQX
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: emqx
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/emqx:5.8.0
+        env:
+        - name: EMQX_NAME
+          value: "buildingos-emqx-demo"
+        - name: EMQX_HOST
+          value: "127.0.0.1"
+        - name: EMQX_NODE__COOKIE
+          value: "emqxsecretcookie_demo"
+        - name: EMQX_DASHBOARD__DEFAULT_USERNAME
+          value: "admin"
+        - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+          value: "emqx_prod_2024"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+  - name: ws
+    port: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-emqx
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+  - name: ws
+    port: 8083
+---

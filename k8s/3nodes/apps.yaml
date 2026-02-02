@@ -1,0 +1,183 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: buildingos-prod
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - backend
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: backend
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-backend:latest
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          value: "postgresql://buildingos:buildingos_prod_2024@postgres:5432/buildingos"
+        - name: DB_TYPE
+          value: "postgres"
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "buildingos"
+        - name: DB_PASSWORD
+          value: "buildingos_prod_2024"
+        - name: DB_NAME
+          value: "buildingos"
+        - name: REDIS_URL
+          value: "redis://:redis_prod_2024@redis:6379"
+        - name: TDENGINE_URL
+          value: "tdengine:6030"
+        - name: MQTT_BROKER_URL
+          value: "ws://emqx:8083/mqtt"
+        - name: MQTT_USERNAME
+          value: "buildingos"
+        - name: MQTT_PASSWORD
+          value: "buildingos_emqx_2024"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: ZLM_HOST
+          value: "zlmediakit"
+        - name: ZLM_API_secret
+          value: "buildingos"
+        resources:
+          requests:
+            cpu: 1
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 3001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-backend
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 3001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: buildingos-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - frontend
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: frontend
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1
+            memory: 512Mi
+        volumeMounts:
+        - name: frontend-data
+          mountPath: /mnt/frontend/webroot
+      volumes:
+      - name: frontend-data
+        persistentVolumeClaim:
+          claimName: frontend-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: buildingos-prod
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildingos-ingress
+  namespace: buildingos-prod
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 3001
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /emqx
+        pathType: Prefix
+        backend:
+          service:
+            name: emqx
+            port:
+              number: 18083
