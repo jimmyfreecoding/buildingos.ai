@@ -83,6 +83,8 @@ spec:
     app: backend
   ports:
   - port: 3001
+    nodePort: 30001
+  type: NodePort
 ---
 apiVersion: v1
 kind: Service
