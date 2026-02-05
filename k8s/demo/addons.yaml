@@ -1,4 +1,4 @@
-# 4. TDengine (Single Node Demo)
+# 4. TDengine (Single Node Demo) - Disabled
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -6,7 +6,7 @@ metadata:
   namespace: buildingos-demo
 spec:
   serviceName: "tdengine"
-  replicas: 1
+  replicas: 0 # Temporarily disabled due to restart loop
   selector:
     matchLabels:
       app: tdengine

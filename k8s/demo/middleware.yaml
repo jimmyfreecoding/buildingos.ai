@@ -1,0 +1,9 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: api-strip
+  namespace: buildingos-demo
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1

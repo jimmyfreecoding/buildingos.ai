@@ -5,6 +5,7 @@ metadata:
   namespace: buildingos-demo
   annotations:
     kubernetes.io/tls-acme: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: buildingos-demo-api-strip@kubernetescrd
 spec:
   tls:
   - hosts:
@@ -14,27 +15,17 @@ spec:
   - host: demo.buildingos.ai
     http:
       paths:
-      - path: /os
-        pathType: Prefix
-        backend:
-          service:
-            name: frontend
-            port:
-              number: 80
-      - path: /pad
-        pathType: Prefix
-        backend:
-          service:
-            name: frontend
-            port:
-              number: 80
-      - path: /api
+      # 1. 后端接口路由 (必须放在前面或最具体)
+      - path: /v1
         pathType: Prefix
         backend:
           service:
             name: backend
             port:
               number: 3001
+      # 2. 前端万能路由 (匹配所有其他路径)
+      # /os, /h5, /pad, /meetingpad 等所有路径都会命中这里
+      # 由前端 Nginx 内部根据路径分发到不同静态资源目录
       - path: /
         pathType: Prefix
         backend:
