@@ -5,7 +5,10 @@ metadata:
   namespace: buildingos-demo
   annotations:
     kubernetes.io/tls-acme: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: buildingos-demo-api-strip@kubernetescrd
+    # 使用 Traefik 1.7 的路径剥离注解 (K3s 默认版本)
+    ingress.kubernetes.io/rewrite-target: /
+    # 添加调试注解，尝试其他写法
+    traefik.frontend.rule.type: PathPrefixStrip
 spec:
   tls:
   - hosts:
@@ -15,17 +18,8 @@ spec:
   - host: demo.buildingos.ai
     http:
       paths:
-      # 1. 后端接口路由 (必须放在前面或最具体)
-      - path: /v1
-        pathType: Prefix
-        backend:
-          service:
-            name: backend
-            port:
-              number: 3001
-      # 2. 前端万能路由 (匹配所有其他路径)
-      # /os, /h5, /pad, /meetingpad 等所有路径都会命中这里
-      # 由前端 Nginx 内部根据路径分发到不同静态资源目录
+      # 1. 统一入口路由：所有流量交给前端 Nginx 处理
+      # 前端 Nginx 会将 /v1/ 转发给 backend，将其他请求作为静态资源服务
       - path: /
         pathType: Prefix
         backend:

@@ -59,12 +59,23 @@ spec:
           value: "zlmediakit"
         - name: ZLM_API_PORT
           value: "80"
+          # 撤销 GLOBAL_PREFIX，因为用户希望通过网关层解决路由问题，不修改后端代码
+          # - name: GLOBAL_PREFIX
+          #   value: "v1"
         - name: AI_PROVIDER
           value: "deepseek"
         - name: AI_MODEL
           value: "deepseek-chat"
         - name: AI_ENABLE_LOCAL
           value: "false"
+        livenessProbe:
+          exec:
+            # 临时使用简单的 curl 命令检查 /api 接口（需要容器内有 curl）
+            # 或者改回 httpGet 方式
+            # command: ["node", "/app/healthcheck.js"] 
+            command: ["curl", "-f", "http://localhost:3001/api"]
+          initialDelaySeconds: 60
+          periodSeconds: 30
         resources:
           requests:
             cpu: 100m
@@ -79,12 +90,12 @@ metadata:
   name: backend
   namespace: buildingos-demo
 spec:
+  type: NodePort
   selector:
     app: backend
   ports:
   - port: 3001
     nodePort: 30001
-  type: NodePort
 ---
 apiVersion: v1
 kind: Service
@@ -96,6 +107,104 @@ spec:
     app: backend
   ports:
   - port: 3001
+---
+# ConfigMap for Frontend Runtime Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: buildingos-demo
+data:
+  config.js: |
+    window.config = {
+      // 这里的 /v1 必须与 Ingress 中配置的路径一致
+      // 前端代码必须从 window.APP_CONFIG.API_BASE_URL 读取，而不是 .env
+      VITE_APP_BASE_URL: "/v1",
+      TITLE: "BuildingOS Demo"
+    };
+---
+# ConfigMap for Frontend Nginx Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx-config
+  namespace: buildingos-demo
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+
+        # 日志格式
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log /var/log/nginx/access.log main;
+        error_log /var/log/nginx/error.log warn;
+
+        # 基本设置
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+
+        # Gzip 压缩
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types
+            text/plain
+            text/css
+            text/xml
+            text/javascript
+            application/json
+            application/javascript
+            application/xml+rss
+            application/atom+xml
+            image/svg+xml;
+
+        server {
+            listen       80;
+            server_name  localhost;
+            root   /mnt/frontend/webroot;
+            index  index.html index.htm;
+            
+            # 增加 access_log 以便调试
+            access_log /var/log/nginx/host.access.log main;
+            error_log /var/log/nginx/error.log debug;
+
+            location / {
+                try_files $uri $uri/ /index.html;
+            }
+
+            # Proxy API requests to backend
+        # 使用 Service 名称进行反向代理，实现 K8s 环境下的标准化部署
+        location /v1/ {
+            # 关键配置：
+            # 1. 使用 K8s Service 名称 "backend" (同命名空间下)
+            # 2. 端口 3001
+            # 3. 尾部的斜杠 / 是必须的，利用 Nginx 特性自动去除匹配的 /v1/ 前缀
+            proxy_pass http://backend:3001/;
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+            
+            location /health {
+                return 200 'OK';
+                add_header Content-Type text/plain;
+            }
+        }
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -117,6 +226,12 @@ spec:
       containers:
       - name: frontend
         image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 40
+          periodSeconds: 30
         resources:
           requests:
             cpu: 50m
@@ -127,10 +242,35 @@ spec:
         volumeMounts:
         - name: frontend-data
           mountPath: /mnt/frontend/webroot
+        # 挂载 config.js 覆盖默认文件
+        # 注意：这里假设前端解压后的根目录是 /mnt/frontend/webroot
+        # 如果你的 config.js 应该在 public/ 下，可能需要挂载到 /mnt/frontend/webroot/config.js
+        - name: config-volume
+          mountPath: /mnt/frontend/webroot/os/config.js
+          subPath: config.js
+        - name: config-volume
+          mountPath: /mnt/frontend/webroot/h5/config.js
+          subPath: config.js
+        - name: config-volume
+          mountPath: /mnt/frontend/webroot/pad/config.js
+          subPath: config.js
+        - name: config-volume
+          mountPath: /mnt/frontend/webroot/meetingpad/config.js
+          subPath: config.js
+        # Mount custom Nginx configuration
+        - name: nginx-config-volume
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
       volumes:
       - name: frontend-data
         persistentVolumeClaim:
           claimName: frontend-pvc
+      - name: config-volume
+        configMap:
+          name: frontend-config
+      - name: nginx-config-volume
+        configMap:
+          name: frontend-nginx-config
 ---
 apiVersion: v1
 kind: Service
