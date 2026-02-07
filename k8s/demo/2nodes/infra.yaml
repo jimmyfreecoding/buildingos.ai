@@ -1,0 +1,254 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: buildingos-demo
+---
+# 0. Frontend Init Job (解压前端静态文件)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: frontend-init
+  namespace: buildingos-demo
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: web-init
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+        command: ["sh", "-lc"]
+        args:
+          - |
+            set -e;
+            if [ -f /mnt/frontend/webroot/.initialized ]; then 
+              echo 'webroot already initialized, skip'; 
+              exit 0; 
+            fi;
+            for z in /tmp/*.zip; do
+              [ -f "$z" ] || continue;
+              app=$(basename "$z" .zip);
+              dest="/mnt/frontend/webroot/$app";
+              mkdir -p "$dest";
+              unzip -o "$z" -d "$dest";
+            done;
+            mkdir -p /mnt/frontend/webroot/releases /mnt/frontend/webroot/uploads;
+            chown -R 1001:1001 /mnt/frontend/webroot;
+            touch /mnt/frontend/webroot/.initialized;
+        volumeMounts:
+        - name: frontend-data
+          mountPath: /mnt/frontend/webroot
+      restartPolicy: OnFailure
+      volumes:
+      - name: frontend-data
+        persistentVolumeClaim:
+          claimName: frontend-pvc
+---
+# PVC for Frontend Data
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend-init-sa
+  namespace: buildingos-demo
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: frontend-pvc
+  namespace: buildingos-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# 2. Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: buildingos-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      imagePullSecrets:
+      - name: swr-registry-key
+      containers:
+      - name: redis
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/redis:7-alpine
+        command: ["redis-server", "--requirepass", "redis_prod_2024", "--appendonly", "yes"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+---
+# 3. EMQX HA Setup
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+      - pods
+    verbs:
+      - get
+      - watch
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: emqx
+subjects:
+  - kind: ServiceAccount
+    name: emqx
+    namespace: buildingos-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      serviceAccountName: emqx
+      imagePullSecrets:
+      - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - emqx
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: emqx
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/emqx:5.8.0
+        env:
+        - name: EMQX_NAME
+          value: "buildingos-emqx-demo"
+        - name: EMQX_HOST
+          value: "127.0.0.1"
+        - name: EMQX_CLUSTER__DISCOVERY_STRATEGY
+          value: "k8s"
+        - name: EMQX_CLUSTER__K8S__APISERVER
+          value: "https://kubernetes.default.svc:443"
+        - name: EMQX_CLUSTER__K8S__SERVICE_NAME
+          value: "emqx-headless"
+        - name: EMQX_CLUSTER__K8S__NAMESPACE
+          value: "buildingos-demo"
+        - name: EMQX_CLUSTER__K8S__ADDRESS_TYPE
+          value: "ip"
+        - name: EMQX_CLUSTER__K8S__SUFFIX
+          value: "pod.cluster.local"
+        - name: EMQX_NODE__COOKIE
+          value: "emqxsecretcookie_demo"
+        - name: EMQX_DASHBOARD__DEFAULT_USERNAME
+          value: "admin"
+        - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+          value: "emqx_prod_2024"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+# Headless Service for Discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx-headless
+  namespace: buildingos-demo
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  namespace: buildingos-demo
+spec:
+  type: LoadBalancer
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+  - name: ws
+    port: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildingos-emqx
+  namespace: buildingos-demo
+spec:
+  selector:
+    app: emqx
+  ports:
+  - name: mqtt
+    port: 1883
+  - name: dashboard
+    port: 18083
+  - name: ws
+    port: 8083

@@ -1,0 +1,29 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-ha
+  namespace: buildingos-demo
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  
+  # 自动故障切换
+  primaryUpdateStrategy: unsupervised
+  
+  # 存储配置 (使用 local-path 获得更好性能，依赖流复制实现高可用)
+  storage:
+    size: 2Gi
+    storageClass: local-path
+  
+  # 初始数据库配置
+  bootstrap:
+    initdb:
+      database: buildingos
+      owner: buildingos
+      secret:
+        name: postgres-ha-auth
+  
+  # 亲和性配置：强制将实例分散到不同节点
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname

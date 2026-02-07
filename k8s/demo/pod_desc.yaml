@@ -1,0 +1,178 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    kubectl.kubernetes.io/restartedAt: "2026-02-07T08:12:28+08:00"
+  creationTimestamp: "2026-02-07T00:12:28Z"
+  generateName: frontend-5d67b54554-
+  labels:
+    app: frontend
+    pod-template-hash: 5d67b54554
+  name: frontend-5d67b54554-nwl87
+  namespace: buildingos-demo
+  ownerReferences:
+  - apiVersion: apps/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: ReplicaSet
+    name: frontend-5d67b54554
+    uid: 1ed8839a-6417-480f-8346-07f3d8779a81
+  resourceVersion: "116266"
+  uid: fd4ce32c-41b7-484e-8779-a67011b5a0ed
+spec:
+  containers:
+  - image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+    imagePullPolicy: Always
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /health
+        port: 80
+        scheme: HTTP
+      initialDelaySeconds: 40
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 1
+    name: frontend
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+    volumeMounts:
+    - mountPath: /mnt/frontend/webroot
+      name: frontend-data
+    - mountPath: /mnt/frontend/webroot/os/config.js
+      name: config-volume
+      subPath: config.js
+    - mountPath: /mnt/frontend/webroot/h5/config.js
+      name: config-volume
+      subPath: config.js
+    - mountPath: /mnt/frontend/webroot/pad/config.js
+      name: config-volume
+      subPath: config.js
+    - mountPath: /mnt/frontend/webroot/meetingpad/config.js
+      name: config-volume
+      subPath: config.js
+    - mountPath: /etc/nginx/nginx.conf
+      name: nginx-config-volume
+      subPath: nginx.conf
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-66szx
+      readOnly: true
+  dnsPolicy: ClusterFirst
+  enableServiceLinks: true
+  imagePullSecrets:
+  - name: swr-registry-key
+  nodeName: vm-4-140-ubuntu
+  preemptionPolicy: PreemptLowerPriority
+  priority: 0
+  restartPolicy: Always
+  schedulerName: default-scheduler
+  securityContext: {}
+  serviceAccount: default
+  serviceAccountName: default
+  terminationGracePeriodSeconds: 30
+  tolerations:
+  - effect: NoExecute
+    key: node.kubernetes.io/not-ready
+    operator: Exists
+    tolerationSeconds: 300
+  - effect: NoExecute
+    key: node.kubernetes.io/unreachable
+    operator: Exists
+    tolerationSeconds: 300
+  volumes:
+  - name: frontend-data
+    persistentVolumeClaim:
+      claimName: frontend-pvc
+  - configMap:
+      defaultMode: 420
+      name: frontend-config
+    name: config-volume
+  - configMap:
+      defaultMode: 420
+      name: frontend-nginx-config
+    name: nginx-config-volume
+  - name: kube-api-access-66szx
+    projected:
+      defaultMode: 420
+      sources:
+      - serviceAccountToken:
+          expirationSeconds: 3607
+          path: token
+      - configMap:
+          items:
+          - key: ca.crt
+            path: ca.crt
+          name: kube-root-ca.crt
+      - downwardAPI:
+          items:
+          - fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+            path: namespace
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-07T00:12:48Z"
+    status: "True"
+    type: PodReadyToStartContainers
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-07T00:12:28Z"
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-07T00:12:48Z"
+    status: "True"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-07T00:12:48Z"
+    status: "True"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2026-02-07T00:12:28Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: containerd://250b4b0c8e6471a018fca58a23d704b1e37da032313025267528334448cf8f73
+    image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
+    imageID: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web@sha256:58759c781d69dafdf3a17547a77010e508988354d126d5a9ce56f05db0552e6f
+    lastState: {}
+    name: frontend
+    ready: true
+    restartCount: 0
+    started: true
+    state:
+      running:
+        startedAt: "2026-02-07T00:12:47Z"
+    volumeMounts:
+    - mountPath: /mnt/frontend/webroot
+      name: frontend-data
+    - mountPath: /mnt/frontend/webroot/os/config.js
+      name: config-volume
+    - mountPath: /mnt/frontend/webroot/h5/config.js
+      name: config-volume
+    - mountPath: /mnt/frontend/webroot/pad/config.js
+      name: config-volume
+    - mountPath: /mnt/frontend/webroot/meetingpad/config.js
+      name: config-volume
+    - mountPath: /etc/nginx/nginx.conf
+      name: nginx-config-volume
+    - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+      name: kube-api-access-66szx
+      readOnly: true
+      recursiveReadOnly: Disabled
+  hostIP: 10.4.4.140
+  hostIPs:
+  - ip: 10.4.4.140
+  phase: Running
+  podIP: 10.42.0.97
+  podIPs:
+  - ip: 10.42.0.97
+  qosClass: Burstable
+  startTime: "2026-02-07T00:12:28Z"

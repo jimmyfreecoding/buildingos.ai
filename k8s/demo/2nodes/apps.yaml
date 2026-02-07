@@ -21,12 +21,13 @@ spec:
         env:
         - name: NODE_ENV
           value: "production"
+        # Update DB connection to High Available Cluster (Read-Write Service)
         - name: DATABASE_URL
-          value: "postgresql://buildingos:buildingos_prod_2024@postgres:5432/buildingos"
+          value: "postgresql://buildingos:buildingos_prod_2024@postgres-ha-rw:5432/buildingos"
         - name: DB_TYPE
           value: "postgres"
         - name: DB_HOST
-          value: "postgres"
+          value: "postgres-ha-rw"
         - name: DB_PORT
           value: "5432"
         - name: DB_USER
@@ -59,9 +60,6 @@ spec:
           value: "zlmediakit"
         - name: ZLM_API_PORT
           value: "80"
-          # 撤销 GLOBAL_PREFIX，因为用户希望通过网关层解决路由问题，不修改后端代码
-          # - name: GLOBAL_PREFIX
-          #   value: "v1"
         - name: AI_PROVIDER
           value: "deepseek"
         - name: AI_MODEL
@@ -70,9 +68,6 @@ spec:
           value: "false"
         livenessProbe:
           exec:
-            # 临时使用简单的 curl 命令检查 /api 接口（需要容器内有 curl）
-            # 或者改回 httpGet 方式
-            # command: ["node", "/app/healthcheck.js"] 
             command: ["curl", "-f", "http://localhost:3001/api"]
           initialDelaySeconds: 60
           periodSeconds: 30
@@ -223,7 +218,7 @@ metadata:
   name: frontend
   namespace: buildingos-demo
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: frontend
@@ -234,6 +229,16 @@ spec:
     spec:
       imagePullSecrets:
       - name: swr-registry-key
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - frontend
+            topologyKey: kubernetes.io/hostname
       initContainers:
       - name: inject-config
         image: swr.cn-east-3.myhuaweicloud.com/geeqee/buildingos-web:latest
