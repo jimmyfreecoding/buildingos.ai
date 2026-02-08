@@ -101,6 +101,31 @@ spec:
     spec:
       imagePullSecrets:
       - name: swr-registry-key
+      # 使用 InitContainer 安装插件，避免 postStart 钩子超时导致 Pod 重启
+      initContainers:
+      - name: install-plugins
+        image: swr.cn-east-3.myhuaweicloud.com/geeqee/node-red:prebuilt
+        command:
+        - "/bin/sh"
+        - "-c"
+        - |
+          cd /data && \
+          if [ ! -f package.json ]; then echo '{}' > package.json; fi && \
+          npm config set registry https://registry.npmmirror.com && \
+          npm install --omit=dev --no-audit --no-fund \
+          node-red-contrib-easy-device \
+          node-red-contrib-lifesmart \
+          node-red-contrib-mqtt-tdengine \
+          node-red-contrib-modbus \
+          node-red-node-mysql \
+          node-red-contrib-postgresql \
+          node-red-contrib-cron-plus \
+          node-red-contrib-moment \
+          node-red-contrib-weather && \
+          chown -R 1000:1000 /data
+        volumeMounts:
+        - name: nodered-data
+          mountPath: /data
       containers:
       - name: nodered
         image: swr.cn-east-3.myhuaweicloud.com/geeqee/node-red:prebuilt
@@ -109,6 +134,8 @@ spec:
           value: "flows.json"
         - name: TZ
           value: "Asia/Shanghai"
+        ports:
+        - containerPort: 1880
         livenessProbe:
           httpGet:
             path: /
@@ -118,10 +145,10 @@ spec:
         resources:
           requests:
             cpu: 50m
-            memory: 128Mi
-          limits:
-            cpu: 200m
             memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
         volumeMounts:
         - name: nodered-data
           mountPath: /data

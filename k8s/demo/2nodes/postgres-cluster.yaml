@@ -26,4 +26,5 @@ spec:
   # 亲和性配置：强制将实例分散到不同节点
   affinity:
     enablePodAntiAffinity: true
+    podAntiAffinityType: required
     topologyKey: kubernetes.io/hostname

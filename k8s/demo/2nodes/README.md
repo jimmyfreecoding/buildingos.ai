@@ -6,8 +6,8 @@
 
 *   **前端高可用 (Frontend HA)**: 部署双副本，通过 `podAntiAffinity` 强制分散在两个不同节点，任一节点宕机不影响访问。
 *   **数据库高可用 (PostgreSQL HA)**: 采用 **CloudNativePG** 构建主从流复制集群，支持自动故障切换 (Failover)。
-*   **消息队列高可用 (EMQX HA)**: 双节点集群模式，通过 K8s Headless Service 自动发现组网。
-*   **有状态服务容灾 (Node-RED)**: 使用 **NFS 共享存储**，当主节点故障时，Pod 可在副节点重新挂载数据启动。
+*   **消息队列高可用 (EMQX HA)**: 双节点集群模式，通过 K8s Headless Service 自动发现组网，并配置 Sticky Session 解决多副本登录问题。
+*   **有状态服务容灾 (Node-RED)**: 使用 **NFS 共享存储**，当主节点故障时，Pod 可在副节点重新挂载数据启动；已集成**安全认证**与**插件自动安装**机制。
 
 ## 2. 部署文件说明
 

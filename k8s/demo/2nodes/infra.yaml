@@ -58,7 +58,8 @@ metadata:
   namespace: buildingos-demo
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
+  storageClassName: nfs-client
   resources:
     requests:
       storage: 1Gi
@@ -148,6 +149,11 @@ metadata:
   namespace: buildingos-demo
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   selector:
     matchLabels:
       app: emqx
@@ -173,10 +179,12 @@ spec:
       - name: emqx
         image: swr.cn-east-3.myhuaweicloud.com/geeqee/emqx:5.8.0
         env:
-        - name: EMQX_NAME
-          value: "buildingos-emqx-demo"
-        - name: EMQX_HOST
-          value: "127.0.0.1"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: EMQX_NODE__NAME
+          value: "emqx@$(POD_IP)"
         - name: EMQX_CLUSTER__DISCOVERY_STRATEGY
           value: "k8s"
         - name: EMQX_CLUSTER__K8S__APISERVER

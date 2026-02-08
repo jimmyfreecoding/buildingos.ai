@@ -9,6 +9,9 @@ metadata:
     ingress.kubernetes.io/rewrite-target: /
     # 添加调试注解，尝试其他写法
     traefik.frontend.rule.type: PathPrefixStrip
+    # 开启 Sticky Session，解决 EMQX 多副本登录跳出问题
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: "emqx_sticky"
 spec:
   tls:
   - hosts:
